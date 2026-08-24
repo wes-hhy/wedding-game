@@ -13,7 +13,7 @@ supabase: Client = create_client(url, key)
 query_params = st.query_params
 page = query_params.get("page", "guest")
 
-# --- VISUAL CALIBRATION (Perfectly matched to your coordinates!) ---
+# --- VISUAL CALIBRATION ---
 BOX_WIDTH = 282
 BOX_HEIGHT = 191
 X_OFFSET = 305
@@ -51,10 +51,13 @@ def load_and_resize_photo(photo_id):
     img = Image.open(f"images_for_app/{photo_id}.jpg").convert("RGBA")
     return ImageOps.fit(img, (BOX_WIDTH, BOX_HEIGHT), Image.Resampling.LANCZOS)
 
+# --- MEMORY ---
 if "selected_photos" not in st.session_state:
     st.session_state.selected_photos = []
 if "has_submitted" not in st.session_state:
     st.session_state.has_submitted = False
+if "guest_name" not in st.session_state:
+    st.session_state.guest_name = ""
 
 def select_photo(photo_id):
     if len(st.session_state.selected_photos) < 4 and photo_id not in st.session_state.selected_photos:
@@ -70,14 +73,22 @@ def generate_film_strip(selected_ids):
         bg.paste(img, (X_OFFSET, Y_POSITIONS[i]))
     return bg
 
+def generate_reveal_strip(revealed_list):
+    # Generates the master strip for the projector, leaving unrevealed slots as empty grey boxes
+    bg = load_template().copy()
+    for i in range(4):
+        if str(i + 1) in revealed_list:
+            p_id = CORRECT_SEQUENCE[i]
+            img = load_and_resize_photo(p_id)
+            bg.paste(img, (X_OFFSET, Y_POSITIONS[i]))
+    return bg
+
 # --- FETCH GAME STATE & SUBMISSIONS ---
 response = supabase.table("game_state").select("status").eq("id", 1).execute()
 game_status = response.data[0]["status"]
 
 subs_response = supabase.table("submissions").select("*").execute()
 all_submissions = subs_response.data
-
-# Find winners and sort them by who submitted first
 winners = [s for s in all_submissions if [s["slot_1"], s["slot_2"], s["slot_3"], s["slot_4"]] == CORRECT_SEQUENCE]
 winners = sorted(winners, key=lambda x: x["submitted_at"])
 
@@ -98,10 +109,8 @@ if page == "admin":
             supabase.table("game_state").update({"status": "closed"}).eq("id", 1).execute()
 
     st.divider()
-    
     st.subheader("2. Projector Reveal Sequence")
     
-    # Reveal individual slots
     revealed_slots = []
     if game_status.startswith("reveal|"):
         parts = game_status.split("|")
@@ -132,14 +141,12 @@ if page == "admin":
             supabase.table("game_state").update({"status": "champion"}).eq("id", 1).execute()
 
     st.divider()
-    
     st.subheader(f"Live Stats ({len(all_submissions)} Total Submissions)")
     st.write(f"**Correct Answers:** {len(winners)}")
     
     with st.expander("View All Submissions Data"):
         st.dataframe(all_submissions)
-        
-        if st.button("🚨 CLEAR ALL SUBMISSIONS (TESTING ONLY)"):
+        if st.button("🚨 CLEAR ALL SUBMISSIONS"):
             supabase.table("submissions").delete().gt("id", 0).execute()
             st.success("Database wiped!")
 
@@ -167,14 +174,19 @@ elif page == "lobby":
         if len(parts) > 1 and parts[1] != "":
             revealed_slots = parts[1].split(",")
             
-        cols = st.columns(4)
-        for i in range(1, 5):
-            with cols[i-1]:
-                st.write(f"### Slot {i}")
+        # Display the vertical film strip alongside a status tracker
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.write("### Reveal Status:")
+            for i in range(1, 5):
                 if str(i) in revealed_slots:
-                    st.image(f"images_for_app/{CORRECT_SEQUENCE[i-1]}.jpg", use_container_width=True)
+                    st.success(f"Slot {i}: Revealed! 🎉")
                 else:
-                    st.info("❓ Hiding...")
+                    st.info(f"Slot {i}: ❓ Hidden")
+        with col2:
+            reveal_img = generate_reveal_strip(revealed_slots)
+            # Constraining the image slightly so it doesn't blow up too massive on a wide projector
+            st.image(reveal_img, width=400)
                     
     elif game_status == "winners":
         st.title("🎉 The Winners! 🎉")
@@ -191,7 +203,6 @@ elif page == "lobby":
         st.title("⚡ THE FASTEST CHAMPION ⚡")
         if len(winners) > 0:
             champ = winners[0]
-            # Convert timestamp to readable time
             time_str = champ['submitted_at'].split("T")[1][:8]
             st.success(f"### 👑 {champ['guest_name']}")
             st.write(f"Locked in their answer at exactly **{time_str}**!")
@@ -211,7 +222,10 @@ else:
     elif game_status == "started":
         if st.session_state.has_submitted:
             st.success("Answers locked in! Look at the projector!")
-            st.write("### Your Submitted Film Strip:")
+            
+            # The official screenshot verification title
+            st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>Official Submission:<br>{st.session_state.guest_name}</h3>", unsafe_allow_html=True)
+            
             final_img = generate_film_strip(st.session_state.selected_photos)
             st.image(final_img, use_container_width=True)
             st.info("📸 Take a screenshot of this page!")
@@ -234,7 +248,9 @@ else:
             st.divider()
             
             if len(st.session_state.selected_photos) == 4:
+                st.warning("⚠️ Fair Play Rule: One submission per person. Please use your real name so we can verify the winner!")
                 guest_name = st.text_input("Enter your name:")
+                
                 if st.button("Submit my film strip!"):
                     if guest_name.strip() == "":
                         st.error("Please enter your name before submitting!")
@@ -248,6 +264,7 @@ else:
                         }
                         supabase.table("submissions").insert(data).execute()
                         st.session_state.has_submitted = True
+                        st.session_state.guest_name = guest_name
                         st.rerun()
             
             st.write("### The Photo Stack")
@@ -262,10 +279,9 @@ else:
                 st.divider()
 
     else:
-        # If status is closed, revealing, winners, or champion
         st.warning("🛑 The game has ended! Look up at the projector for the results!")
         if st.session_state.has_submitted:
-            st.write("### Your Submitted Film Strip:")
+            st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>Official Submission:<br>{st.session_state.guest_name}</h3>", unsafe_allow_html=True)
             final_img = generate_film_strip(st.session_state.selected_photos)
             st.image(final_img, use_container_width=True)
         time.sleep(3)
