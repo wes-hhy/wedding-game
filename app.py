@@ -2,7 +2,6 @@ import streamlit as st
 from supabase import create_client, Client
 from PIL import Image, ImageOps
 import time
-import io
 
 st.set_page_config(page_title="Wedding Game", layout="centered", initial_sidebar_state="collapsed")
 
@@ -14,13 +13,32 @@ query_params = st.query_params
 page = query_params.get("page", "guest")
 
 # --- VISUAL CALIBRATION ---
-# You can tweak these numbers later to align the photos perfectly over the grey boxes!
-BOX_WIDTH = 1380
-BOX_HEIGHT = 920
-X_OFFSET = 1095
-# The vertical starting points for slot 1, 2, 3, and 4
-Y_POSITIONS = [445, 1420, 2390, 3365]
+BOX_WIDTH = 1130
+BOX_HEIGHT = 764
+X_OFFSET = 1220
+Y_START = 656
+Y_GAP = 200 # <-- TWEAK THIS: If the vertical gap between photos is slightly off, adjust this number up or down!
 
+# Mathematically stack the boxes evenly
+Y_POSITIONS = [
+    Y_START, 
+    Y_START + (BOX_HEIGHT + Y_GAP), 
+    Y_START + (BOX_HEIGHT + Y_GAP) * 2, 
+    Y_START + (BOX_HEIGHT + Y_GAP) * 3
+]
+
+# --- CACHING FOR SPEED ---
+@st.cache_resource
+def load_template():
+    return Image.open("images_for_app/Film Strip Empty.jpg").convert("RGBA")
+
+@st.cache_resource
+def load_and_resize_photo(photo_id):
+    img = Image.open(f"images_for_app/{photo_id}.jpg").convert("RGBA")
+    # Resizes the image perfectly to 1130x764 without stretching
+    return ImageOps.fit(img, (BOX_WIDTH, BOX_HEIGHT), Image.Resampling.LANCZOS)
+
+# --- MEMORY ---
 if "selected_photos" not in st.session_state:
     st.session_state.selected_photos = []
 if "has_submitted" not in st.session_state:
@@ -34,17 +52,12 @@ def clear_photos():
     st.session_state.selected_photos = []
 
 def generate_film_strip(selected_ids):
-    # Load the background template
-    bg = Image.open("images_for_app/Film Strip Empty.jpg").convert("RGBA")
+    # Grab the pre-loaded template from memory
+    bg = load_template().copy()
     
     for i, p_id in enumerate(selected_ids):
-        # Load guest's selected photo
-        img = Image.open(f"images_for_app/{p_id}.jpg").convert("RGBA")
-        
-        # Crop exactly to 3:2 aspect ratio without stretching
-        img = ImageOps.fit(img, (BOX_WIDTH, BOX_HEIGHT), Image.Resampling.LANCZOS)
-        
-        # Paste onto the background
+        # Grab the pre-resized photo from memory and paste it
+        img = load_and_resize_photo(p_id)
         bg.paste(img, (X_OFFSET, Y_POSITIONS[i]))
     return bg
 
@@ -66,7 +79,7 @@ elif page == "lobby":
     time.sleep(3)
     st.rerun()
 
-# ----------------- GUEST SCREEN -----------------
+# ----------------- GUEST SCREEN (THE GAME) -----------------
 else:
     st.title("Photo Booth Challenge 📱")
     
@@ -79,12 +92,10 @@ else:
         st.rerun()
         
     elif game_status == "started":
-        
         if st.session_state.has_submitted:
             st.success("Answers locked in! Wait for the emcee's announcement!")
             st.write("### Your Submitted Film Strip:")
             
-            # Show the final merged image
             final_img = generate_film_strip(st.session_state.selected_photos)
             st.image(final_img, use_container_width=True)
             
@@ -93,7 +104,6 @@ else:
         else:
             st.write("### 🎞️ Your Film Strip")
             
-            # Show live preview of the merged template
             current_img = generate_film_strip(st.session_state.selected_photos)
             st.image(current_img, use_container_width=True)
             
