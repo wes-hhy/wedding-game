@@ -17,7 +17,7 @@ BOX_WIDTH = 1130
 BOX_HEIGHT = 764
 X_OFFSET = 1220
 Y_START = 656
-Y_GAP = 77 # <-- TWEAK THIS: If the vertical gap between photos is slightly off, adjust this number up or down!
+Y_GAP = 76 # <-- TWEAK THIS: If the vertical gap between photos is slightly off, adjust this number up or down!
 
 # Mathematically stack the boxes evenly
 Y_POSITIONS = [
