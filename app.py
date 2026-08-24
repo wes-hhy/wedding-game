@@ -2,6 +2,7 @@ import streamlit as st
 from supabase import create_client, Client
 from PIL import Image, ImageOps
 import time
+from datetime import datetime
 
 st.set_page_config(page_title="Wedding Game", layout="centered", initial_sidebar_state="collapsed")
 
@@ -12,12 +13,12 @@ supabase: Client = create_client(url, key)
 query_params = st.query_params
 page = query_params.get("page", "guest")
 
-# --- VISUAL CALIBRATION (Scaled down to 25%!) ---
-BOX_WIDTH = 283
+# --- VISUAL CALIBRATION (Perfectly matched to your coordinates!) ---
+BOX_WIDTH = 282
 BOX_HEIGHT = 191
 X_OFFSET = 305
 Y_START = 164
-Y_GAP = 50 
+Y_GAP = 19 
 
 Y_POSITIONS = [
     Y_START, 
@@ -26,7 +27,8 @@ Y_POSITIONS = [
     Y_START + (BOX_HEIGHT + Y_GAP) * 3
 ]
 
-# --- THE STORY HINTS ---
+CORRECT_SEQUENCE = [1, 2, 0, 9]
+
 hints = {
     0: "Day zero. Our very first date, getting to know each other where it all beGINs.",
     1: "One down, many to come. Our first snowboard trip together!",
@@ -40,17 +42,15 @@ hints = {
     9: "On cloud nine. So shocked she kept asking when did he collect the ring, instead of saying yes."
 }
 
-# --- CACHING FOR SPEED ---
 @st.cache_resource
 def load_template():
-    return Image.open("images_for_app/Film Strip Empty.jpg").convert("RGBA")
+    return Image.open("images_for_app/Film Strip Empty_V2.jpg").convert("RGBA")
 
 @st.cache_resource
 def load_and_resize_photo(photo_id):
     img = Image.open(f"images_for_app/{photo_id}.jpg").convert("RGBA")
     return ImageOps.fit(img, (BOX_WIDTH, BOX_HEIGHT), Image.Resampling.LANCZOS)
 
-# --- MEMORY ---
 if "selected_photos" not in st.session_state:
     st.session_state.selected_photos = []
 if "has_submitted" not in st.session_state:
@@ -70,30 +70,138 @@ def generate_film_strip(selected_ids):
         bg.paste(img, (X_OFFSET, Y_POSITIONS[i]))
     return bg
 
+# --- FETCH GAME STATE & SUBMISSIONS ---
+response = supabase.table("game_state").select("status").eq("id", 1).execute()
+game_status = response.data[0]["status"]
+
+subs_response = supabase.table("submissions").select("*").execute()
+all_submissions = subs_response.data
+
+# Find winners and sort them by who submitted first
+winners = [s for s in all_submissions if [s["slot_1"], s["slot_2"], s["slot_3"], s["slot_4"]] == CORRECT_SEQUENCE]
+winners = sorted(winners, key=lambda x: x["submitted_at"])
+
 # ----------------- ADMIN SCREEN -----------------
 if page == "admin":
     st.title("Admin Control 👑")
-    if st.button("🚀 START GAME"):
-        supabase.table("game_state").update({"status": "started"}).eq("id", 1).execute()
-        st.success("Game Started! Guest phones will update shortly.")
     
-    if st.button("Reset to Lobby"):
-        supabase.table("game_state").update({"status": "lobby"}).eq("id", 1).execute()
-        st.warning("Game reset back to Lobby.")
+    st.subheader("1. Game Controls")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Lobby (QR)"):
+            supabase.table("game_state").update({"status": "lobby"}).eq("id", 1).execute()
+    with col2:
+        if st.button("🚀 START GAME"):
+            supabase.table("game_state").update({"status": "started"}).eq("id", 1).execute()
+    with col3:
+        if st.button("🛑 STOP GAME"):
+            supabase.table("game_state").update({"status": "closed"}).eq("id", 1).execute()
 
-# ----------------- PROJECTOR SCREEN (LOBBY) -----------------
+    st.divider()
+    
+    st.subheader("2. Projector Reveal Sequence")
+    
+    # Reveal individual slots
+    revealed_slots = []
+    if game_status.startswith("reveal|"):
+        parts = game_status.split("|")
+        if len(parts) > 1 and parts[1] != "":
+            revealed_slots = parts[1].split(",")
+
+    r_cols = st.columns(4)
+    for i in range(1, 5):
+        with r_cols[i-1]:
+            if str(i) in revealed_slots:
+                if st.button(f"Hide Slot {i}"):
+                    revealed_slots.remove(str(i))
+                    supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
+                    st.rerun()
+            else:
+                if st.button(f"Reveal Slot {i}", type="primary"):
+                    revealed_slots.append(str(i))
+                    supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
+                    st.rerun()
+
+    st.write("")
+    w_col1, w_col2 = st.columns(2)
+    with w_col1:
+        if st.button("🏆 Show Top 5 Winners"):
+            supabase.table("game_state").update({"status": "winners"}).eq("id", 1).execute()
+    with w_col2:
+        if st.button("⚡ Show Fastest Champion"):
+            supabase.table("game_state").update({"status": "champion"}).eq("id", 1).execute()
+
+    st.divider()
+    
+    st.subheader(f"Live Stats ({len(all_submissions)} Total Submissions)")
+    st.write(f"**Correct Answers:** {len(winners)}")
+    
+    with st.expander("View All Submissions Data"):
+        st.dataframe(all_submissions)
+        
+        if st.button("🚨 CLEAR ALL SUBMISSIONS (TESTING ONLY)"):
+            supabase.table("submissions").delete().gt("id", 0).execute()
+            st.success("Database wiped!")
+
+# ----------------- PROJECTOR SCREEN -----------------
 elif page == "lobby":
-    st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
-    st.subheader("Scan the QR code on your table to join the waiting room!")
-    time.sleep(3)
+    
+    if game_status == "lobby":
+        st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
+        st.subheader("Scan the QR code on your table to join the waiting room!")
+        
+    elif game_status == "started":
+        st.title("The game is LIVE! ⏳")
+        st.subheader(f"Total Submissions So Far: {len(all_submissions)}")
+        st.info("Pick your 4 photos quickly! Fastest correct answer wins.")
+        
+    elif game_status == "closed":
+        st.title("🛑 TIME'S UP!")
+        st.subheader(f"Total Submissions Locked In: {len(all_submissions)}")
+        st.write("Eyes on the screen... let's reveal the answers!")
+        
+    elif game_status.startswith("reveal|"):
+        st.title("The Correct Sequence...")
+        revealed_slots = []
+        parts = game_status.split("|")
+        if len(parts) > 1 and parts[1] != "":
+            revealed_slots = parts[1].split(",")
+            
+        cols = st.columns(4)
+        for i in range(1, 5):
+            with cols[i-1]:
+                st.write(f"### Slot {i}")
+                if str(i) in revealed_slots:
+                    st.image(f"images_for_app/{CORRECT_SEQUENCE[i-1]}.jpg", use_container_width=True)
+                else:
+                    st.info("❓ Hiding...")
+                    
+    elif game_status == "winners":
+        st.title("🎉 The Winners! 🎉")
+        if len(winners) == 0:
+            st.error("No one got the exact sequence! The emcee will announce the closest runner-up.")
+        else:
+            st.write("These guests got the perfect 1-2-0-9 sequence:")
+            for i, w in enumerate(winners[:5]):
+                st.success(f"**{w['guest_name']}**")
+            if len(winners) > 5:
+                st.write(f"...and {len(winners) - 5} more!")
+                
+    elif game_status == "champion":
+        st.title("⚡ THE FASTEST CHAMPION ⚡")
+        if len(winners) > 0:
+            champ = winners[0]
+            # Convert timestamp to readable time
+            time_str = champ['submitted_at'].split("T")[1][:8]
+            st.success(f"### 👑 {champ['guest_name']}")
+            st.write(f"Locked in their answer at exactly **{time_str}**!")
+
+    time.sleep(2)
     st.rerun()
 
-# ----------------- GUEST SCREEN (THE GAME) -----------------
+# ----------------- GUEST SCREEN -----------------
 else:
     st.title("Photo Booth Challenge 📱")
-    
-    response = supabase.table("game_state").select("status").eq("id", 1).execute()
-    game_status = response.data[0]["status"]
     
     if game_status == "lobby":
         st.info("The game hasn't started yet! Hang tight, the emcee will begin shortly.")
@@ -102,17 +210,12 @@ else:
         
     elif game_status == "started":
         if st.session_state.has_submitted:
-            st.success("Answers locked in! Wait for the emcee's announcement!")
+            st.success("Answers locked in! Look at the projector!")
             st.write("### Your Submitted Film Strip:")
-            
-            # The ONLY time we run the heavy image math is here at the very end
             final_img = generate_film_strip(st.session_state.selected_photos)
             st.image(final_img, use_container_width=True)
-            
-            st.info("📸 Take a screenshot of this page! You will need to show this to claim your prize.")
-            
+            st.info("📸 Take a screenshot of this page!")
         else:
-            # --- THE LAZY RENDER UI ---
             if len(st.session_state.selected_photos) > 0:
                 st.write("### 🎞️ Your Sequence:")
                 cols = st.columns(4)
@@ -120,7 +223,6 @@ else:
                     with cols[i]:
                         if i < len(st.session_state.selected_photos):
                             p_id = st.session_state.selected_photos[i]
-                            # Displaying native images natively (zero math!)
                             st.image(f"images_for_app/{p_id}.jpg", use_container_width=True)
                             st.caption(f"Slot {i+1}")
                         else:
@@ -132,9 +234,7 @@ else:
             st.divider()
             
             if len(st.session_state.selected_photos) == 4:
-                st.write("### All 4 slots filled!")
                 guest_name = st.text_input("Enter your name:")
-                
                 if st.button("Submit my film strip!"):
                     if guest_name.strip() == "":
                         st.error("Please enter your name before submitting!")
@@ -151,16 +251,22 @@ else:
                         st.rerun()
             
             st.write("### The Photo Stack")
-            
-            # Displaying photos in a single column so the hint text is easy to read
             for i in range(10):
                 st.image(f"images_for_app/{i}.jpg", use_container_width=True)
                 st.write(hints[i])
-                
                 if i in st.session_state.selected_photos:
                     idx = st.session_state.selected_photos.index(i) + 1
                     st.success(f"✅ Selected as #{idx}")
                 elif len(st.session_state.selected_photos) < 4:
                     st.button(f"Select Photo", key=f"btn_{i}", on_click=select_photo, args=(i,))
-                
                 st.divider()
+
+    else:
+        # If status is closed, revealing, winners, or champion
+        st.warning("🛑 The game has ended! Look up at the projector for the results!")
+        if st.session_state.has_submitted:
+            st.write("### Your Submitted Film Strip:")
+            final_img = generate_film_strip(st.session_state.selected_photos)
+            st.image(final_img, use_container_width=True)
+        time.sleep(3)
+        st.rerun()
