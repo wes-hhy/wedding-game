@@ -74,7 +74,6 @@ def generate_film_strip(selected_ids):
     return bg
 
 def generate_reveal_strip(revealed_list):
-    # Generates the master strip for the projector, leaving unrevealed slots as empty grey boxes
     bg = load_template().copy()
     for i in range(4):
         if str(i + 1) in revealed_list:
@@ -162,10 +161,20 @@ elif page == "lobby":
         st.subheader(f"Total Submissions So Far: {len(all_submissions)}")
         st.info("Pick your 4 photos quickly! Fastest correct answer wins.")
         
+        # Displays the pure empty film strip on the projector during live play
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.image(load_template(), width=400)
+        
     elif game_status == "closed":
         st.title("🛑 TIME'S UP!")
         st.subheader(f"Total Submissions Locked In: {len(all_submissions)}")
         st.write("Eyes on the screen... let's reveal the answers!")
+        
+        # Keeps the empty strip up while time is up to maintain visual consistency
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.image(load_template(), width=400)
         
     elif game_status.startswith("reveal|"):
         st.title("The Correct Sequence...")
@@ -174,7 +183,6 @@ elif page == "lobby":
         if len(parts) > 1 and parts[1] != "":
             revealed_slots = parts[1].split(",")
             
-        # Display the vertical film strip alongside a status tracker
         col1, col2 = st.columns([1, 2])
         with col1:
             st.write("### Reveal Status:")
@@ -185,7 +193,6 @@ elif page == "lobby":
                     st.info(f"Slot {i}: ❓ Hidden")
         with col2:
             reveal_img = generate_reveal_strip(revealed_slots)
-            # Constraining the image slightly so it doesn't blow up too massive on a wide projector
             st.image(reveal_img, width=400)
                     
     elif game_status == "winners":
@@ -223,7 +230,6 @@ else:
         if st.session_state.has_submitted:
             st.success("Answers locked in! Look at the projector!")
             
-            # The official screenshot verification title
             st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>Official Submission:<br>{st.session_state.guest_name}</h3>", unsafe_allow_html=True)
             
             final_img = generate_film_strip(st.session_state.selected_photos)
