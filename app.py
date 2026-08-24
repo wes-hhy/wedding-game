@@ -51,7 +51,6 @@ def load_and_resize_photo(photo_id):
     img = Image.open(f"images_for_app/{photo_id}.jpg").convert("RGBA")
     return ImageOps.fit(img, (BOX_WIDTH, BOX_HEIGHT), Image.Resampling.LANCZOS)
 
-# --- MEMORY ---
 if "selected_photos" not in st.session_state:
     st.session_state.selected_photos = []
 if "has_submitted" not in st.session_state:
@@ -152,69 +151,73 @@ if page == "admin":
 # ----------------- PROJECTOR SCREEN -----------------
 elif page == "lobby":
     
-    if game_status == "lobby":
-        st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
-        st.subheader("Scan the QR code on your table to join the waiting room!")
-        
-    elif game_status == "started":
-        st.title("The game is LIVE! ⏳")
-        st.subheader(f"Total Submissions So Far: {len(all_submissions)}")
-        st.info("Pick your 4 photos quickly! Fastest correct answer wins.")
-        
-        # Displays the pure empty film strip on the projector during live play
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.image(load_template(), width=400)
-        
-    elif game_status == "closed":
-        st.title("🛑 TIME'S UP!")
-        st.subheader(f"Total Submissions Locked In: {len(all_submissions)}")
-        st.write("Eyes on the screen... let's reveal the answers!")
-        
-        # Keeps the empty strip up while time is up to maintain visual consistency
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.image(load_template(), width=400)
-        
-    elif game_status.startswith("reveal|"):
-        st.title("The Correct Sequence...")
-        revealed_slots = []
-        parts = game_status.split("|")
-        if len(parts) > 1 and parts[1] != "":
-            revealed_slots = parts[1].split(",")
+    # Establish a rigid, stable layout to prevent screen flickering
+    text_col, image_col = st.columns([1, 1.2])
+    
+    with text_col:
+        if game_status == "lobby":
+            st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
+            st.subheader("Scan the QR code on your table to join the waiting room!")
             
-        col1, col2 = st.columns([1, 2])
-        with col1:
+        elif game_status == "started":
+            st.title("The game is LIVE! ⏳")
+            st.subheader(f"Total Submissions So Far: {len(all_submissions)}")
+            st.info("Pick your 4 photos quickly! Fastest correct answer wins.")
+            
+        elif game_status == "closed":
+            st.title("🛑 TIME'S UP!")
+            st.subheader(f"Total Submissions Locked In: {len(all_submissions)}")
+            st.write("Eyes on the screen... let's reveal the answers!")
+            
+        elif game_status.startswith("reveal|"):
+            st.title("The Correct Sequence...")
+            revealed_slots = []
+            parts = game_status.split("|")
+            if len(parts) > 1 and parts[1] != "":
+                revealed_slots = parts[1].split(",")
+                
             st.write("### Reveal Status:")
             for i in range(1, 5):
                 if str(i) in revealed_slots:
                     st.success(f"Slot {i}: Revealed! 🎉")
                 else:
                     st.info(f"Slot {i}: ❓ Hidden")
-        with col2:
-            reveal_img = generate_reveal_strip(revealed_slots)
-            st.image(reveal_img, width=400)
+                        
+        elif game_status == "winners":
+            st.title("🎉 The Winners! 🎉")
+            if len(winners) == 0:
+                st.error("No one got the exact sequence! The emcee will announce the closest runner-up.")
+            else:
+                st.write("These guests got the perfect 1-2-0-9 sequence:")
+                for i, w in enumerate(winners[:5]):
+                    st.success(f"**{w['guest_name']}**")
+                if len(winners) > 5:
+                    st.write(f"...and {len(winners) - 5} more!")
                     
-    elif game_status == "winners":
-        st.title("🎉 The Winners! 🎉")
-        if len(winners) == 0:
-            st.error("No one got the exact sequence! The emcee will announce the closest runner-up.")
-        else:
-            st.write("These guests got the perfect 1-2-0-9 sequence:")
-            for i, w in enumerate(winners[:5]):
-                st.success(f"**{w['guest_name']}**")
-            if len(winners) > 5:
-                st.write(f"...and {len(winners) - 5} more!")
-                
-    elif game_status == "champion":
-        st.title("⚡ THE FASTEST CHAMPION ⚡")
-        if len(winners) > 0:
-            champ = winners[0]
-            time_str = champ['submitted_at'].split("T")[1][:8]
-            st.success(f"### 👑 {champ['guest_name']}")
-            st.write(f"Locked in their answer at exactly **{time_str}**!")
+        elif game_status == "champion":
+            st.title("⚡ THE FASTEST CHAMPION ⚡")
+            if len(winners) > 0:
+                champ = winners[0]
+                time_str = champ['submitted_at'].split("T")[1][:8]
+                st.success(f"### 👑 {champ['guest_name']}")
+                st.write(f"Locked in their answer at exactly **{time_str}**!")
 
-    time.sleep(2)
+    with image_col:
+        # Dynamically inject the correct image into the locked right column
+        if game_status in ["lobby", "started", "closed"]:
+            st.image(load_template(), use_container_width=True)
+            
+        elif game_status.startswith("reveal|"):
+            parts = game_status.split("|")
+            revealed = parts[1].split(",") if len(parts) > 1 and parts[1] != "" else []
+            st.image(generate_reveal_strip(revealed), use_container_width=True)
+            
+        elif game_status in ["winners", "champion"]:
+            # Display the fully completed 1-2-0-9 masterpiece
+            st.image(generate_reveal_strip(["1", "2", "3", "4"]), use_container_width=True)
+
+    # Slowed the refresh rate to 3 seconds to further minimize visual redraws
+    time.sleep(3)
     st.rerun()
 
 # ----------------- GUEST SCREEN -----------------
@@ -229,9 +232,7 @@ else:
     elif game_status == "started":
         if st.session_state.has_submitted:
             st.success("Answers locked in! Look at the projector!")
-            
             st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>Official Submission:<br>{st.session_state.guest_name}</h3>", unsafe_allow_html=True)
-            
             final_img = generate_film_strip(st.session_state.selected_photos)
             st.image(final_img, use_container_width=True)
             st.info("📸 Take a screenshot of this page!")
