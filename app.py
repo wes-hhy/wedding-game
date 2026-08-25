@@ -2,7 +2,6 @@ import streamlit as st
 from supabase import create_client, Client
 from PIL import Image, ImageOps
 import time
-from datetime import datetime
 
 st.set_page_config(page_title="Wedding Game", layout="centered", initial_sidebar_state="collapsed")
 
@@ -10,15 +9,21 @@ url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
-query_params = st.query_params
+# --- THE PERMANENT ROLE LOCK ---
+if "app_role" not in st.session_state:
+    q_params = st.query_params
+    page_param = q_params.get("page", "")
+    if isinstance(page_param, list):
+        page_param = page_param[0] if len(page_param) > 0 else ""
+        
+    if page_param.lower() == "lobby" or "lobby" in q_params:
+        st.session_state.app_role = "lobby"
+    elif page_param.lower() == "admin" or "admin" in q_params:
+        st.session_state.app_role = "admin"
+    else:
+        st.session_state.app_role = "guest"
 
-# --- THE BULLETPROOF URL ROUTER ---
-if "lobby" in query_params or query_params.get("page") == "lobby":
-    page = "lobby"
-elif "admin" in query_params or query_params.get("page") == "admin":
-    page = "admin"
-else:
-    page = "guest"
+page = st.session_state.app_role
 
 # --- VISUAL CALIBRATION ---
 BOX_WIDTH = 282
@@ -236,6 +241,25 @@ elif page == "lobby":
 
 # ----------------- GUEST SCREEN -----------------
 else:
+    # --- CUSTOM MOBILE GRID CSS ---
+    # This prevents Streamlit from stacking images on top of each other on mobile phones
+    st.markdown("""
+    <style>
+        @media (max-width: 640px) {
+            div[data-testid="stHorizontalBlock"] {
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+            }
+            div[data-testid="column"] {
+                width: 100% !important;
+                flex: 1 1 0% !important;
+                min-width: 0 !important;
+                padding: 0 5px !important;
+            }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.title("Photo Booth Challenge 📱")
     
     if game_status == "lobby":
@@ -251,10 +275,9 @@ else:
             st.image(final_img, use_container_width=True)
             st.info("📸 Take a screenshot of this page!")
         else:
-            # --- THE STORY GALLERY UI ---
+            # --- COMPACT MOBILE SEQUENCE ---
             st.write("### 🎞️ Your Sequence")
             
-            # Displays current picks at the very top
             cols = st.columns(4)
             for i in range(4):
                 with cols[i]:
@@ -289,19 +312,33 @@ else:
                         st.rerun()
                         
             st.divider()
+            
+            # --- 2-COLUMN STORY GALLERY ---
             st.write("### The Story Gallery")
             st.info("Scroll down to read our story and select your 4 favorite memories.")
             
-            for i in range(10):
-                st.image(f"images_for_app/{i}.jpg", use_container_width=True)
-                st.write(f"**{hints[i]}**")
+            # Render images dynamically into a tight 2-column grid
+            for i in range(0, 10, 2):
+                col1, col2 = st.columns(2)
                 
-                if i in st.session_state.selected_photos:
-                    idx = st.session_state.selected_photos.index(i) + 1
-                    st.success(f"✅ Selected as #{idx}")
-                elif len(st.session_state.selected_photos) < 4:
-                    st.button(f"Select Photo", key=f"btn_{i}", on_click=select_photo, args=(i,), use_container_width=True)
-                
+                with col1:
+                    st.image(f"images_for_app/{i}.jpg", use_container_width=True)
+                    st.write(f"<small>{hints[i]}</small>", unsafe_allow_html=True)
+                    if i in st.session_state.selected_photos:
+                        idx = st.session_state.selected_photos.index(i) + 1
+                        st.success(f"✅ #{idx}")
+                    elif len(st.session_state.selected_photos) < 4:
+                        st.button(f"Select", key=f"btn_{i}", on_click=select_photo, args=(i,), use_container_width=True)
+                        
+                with col2:
+                    if i + 1 < 10:
+                        st.image(f"images_for_app/{i+1}.jpg", use_container_width=True)
+                        st.write(f"<small>{hints[i+1]}</small>", unsafe_allow_html=True)
+                        if (i + 1) in st.session_state.selected_photos:
+                            idx = st.session_state.selected_photos.index(i+1) + 1
+                            st.success(f"✅ #{idx}")
+                        elif len(st.session_state.selected_photos) < 4:
+                            st.button(f"Select", key=f"btn_{i+1}", on_click=select_photo, args=(i+1,), use_container_width=True)
                 st.divider()
 
     else:
@@ -312,3 +349,6 @@ else:
             st.image(final_img, use_container_width=True)
         time.sleep(3)
         st.rerun()
+```eof
+
+Test this on your mobile device. The custom CSS targets the Streamlit interface and forcibly locks the images into side-by-side columns, giving you a beautiful 2-column grid!
