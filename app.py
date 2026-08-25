@@ -16,7 +16,7 @@ page = query_params.get("page", "guest")
 # --- VISUAL CALIBRATION ---
 BOX_WIDTH = 282
 BOX_HEIGHT = 191
-X_OFFSET = 305
+X_OFFSET = 306
 Y_START = 164
 Y_GAP = 19 
 
@@ -27,7 +27,7 @@ Y_POSITIONS = [
     Y_START + (BOX_HEIGHT + Y_GAP) * 3
 ]
 
-CORRECT_SEQUENCE = [1, 2, 0, 9]
+CORRECT_SEQUENCE = [0, 7, 1, 5]
 
 hints = {
     0: "Day zero. Our very first date, getting to know each other where it all beGINs.",
