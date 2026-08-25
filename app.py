@@ -107,38 +107,42 @@ if page == "admin":
             supabase.table("game_state").update({"status": "closed"}).eq("id", 1).execute()
 
     st.divider()
-    st.subheader("2. Projector Reveal Sequence")
     
-    revealed_slots = []
-    if game_status.startswith("reveal|"):
-        parts = game_status.split("|")
-        if len(parts) > 1 and parts[1] != "":
-            revealed_slots = parts[1].split(",")
+    # QoL CHANGE: Only show the Reveal Sequence buttons if the game isn't currently displaying winners
+    if game_status not in ["winners", "champion"]:
+        st.subheader("2. Projector Reveal Sequence")
+        
+        revealed_slots = []
+        if game_status.startswith("reveal|"):
+            parts = game_status.split("|")
+            if len(parts) > 1 and parts[1] != "":
+                revealed_slots = parts[1].split(",")
 
-    r_cols = st.columns(4)
-    for i in range(1, 5):
-        with r_cols[i-1]:
-            if str(i) in revealed_slots:
-                if st.button(f"Hide Slot {i}"):
-                    revealed_slots.remove(str(i))
-                    supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
-                    st.rerun()
-            else:
-                if st.button(f"Reveal Slot {i}", type="primary"):
-                    revealed_slots.append(str(i))
-                    supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
-                    st.rerun()
+        r_cols = st.columns(4)
+        for i in range(1, 5):
+            with r_cols[i-1]:
+                if str(i) in revealed_slots:
+                    if st.button(f"Hide Slot {i}"):
+                        revealed_slots.remove(str(i))
+                        supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
+                        st.rerun()
+                else:
+                    if st.button(f"Reveal Slot {i}", type="primary"):
+                        revealed_slots.append(str(i))
+                        supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
+                        st.rerun()
 
-    st.write("")
-    w_col1, w_col2 = st.columns(2)
-    with w_col1:
-        if st.button("🏆 Show Top 5 Winners"):
-            supabase.table("game_state").update({"status": "winners"}).eq("id", 1).execute()
-    with w_col2:
-        if st.button("⚡ Show Fastest Champion"):
-            supabase.table("game_state").update({"status": "champion"}).eq("id", 1).execute()
+        st.write("")
+        w_col1, w_col2 = st.columns(2)
+        with w_col1:
+            if st.button("🏆 Show Top 5 Winners"):
+                supabase.table("game_state").update({"status": "winners"}).eq("id", 1).execute()
+        with w_col2:
+            if st.button("⚡ Show Fastest Champion"):
+                supabase.table("game_state").update({"status": "champion"}).eq("id", 1).execute()
 
-    st.divider()
+        st.divider()
+        
     st.subheader(f"Live Stats ({len(all_submissions)} Total Submissions)")
     st.write(f"**Correct Answers:** {len(winners)}")
     
@@ -151,7 +155,6 @@ if page == "admin":
 # ----------------- PROJECTOR SCREEN -----------------
 elif page == "lobby":
     
-    # Establish a rigid, stable layout to prevent screen flickering
     text_col, image_col = st.columns([1, 1.2])
     
     with text_col:
@@ -203,7 +206,6 @@ elif page == "lobby":
                 st.write(f"Locked in their answer at exactly **{time_str}**!")
 
     with image_col:
-        # Dynamically inject the correct image into the locked right column
         if game_status in ["lobby", "started", "closed"]:
             st.image(load_template(), use_container_width=True)
             
@@ -213,10 +215,8 @@ elif page == "lobby":
             st.image(generate_reveal_strip(revealed), use_container_width=True)
             
         elif game_status in ["winners", "champion"]:
-            # Display the fully completed 1-2-0-9 masterpiece
             st.image(generate_reveal_strip(["1", "2", "3", "4"]), use_container_width=True)
 
-    # Slowed the refresh rate to 3 seconds to further minimize visual redraws
     time.sleep(3)
     st.rerun()
 
@@ -237,53 +237,69 @@ else:
             st.image(final_img, use_container_width=True)
             st.info("📸 Take a screenshot of this page!")
         else:
-            if len(st.session_state.selected_photos) > 0:
-                st.write("### 🎞️ Your Sequence:")
-                cols = st.columns(4)
+            # QoL CHANGE: Custom CSS to make the left column sticky when scrolling
+            st.markdown("""
+            <style>
+                [data-testid="column"]:nth-of-type(1) {
+                    position: sticky;
+                    top: 3rem;
+                    z-index: 10;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Split screen: Left for sequence (sticky), Right for photo stack
+            seq_col, stack_col = st.columns([1, 2.5])
+            
+            with seq_col:
+                st.write("### 🎞️ Sequence")
                 for i in range(4):
-                    with cols[i]:
-                        if i < len(st.session_state.selected_photos):
-                            p_id = st.session_state.selected_photos[i]
-                            st.image(f"images_for_app/{p_id}.jpg", use_container_width=True)
-                            st.caption(f"Slot {i+1}")
-                        else:
-                            st.write("*(Empty)*")
-                st.button("Clear Selection", on_click=clear_photos)
-            else:
-                st.info("Scroll down and select 4 photos to build your strip!")
-            
-            st.divider()
-            
-            if len(st.session_state.selected_photos) == 4:
-                st.warning("⚠️ Fair Play Rule: One submission per person. Please use your real name so we can verify the winner!")
-                guest_name = st.text_input("Enter your name:")
-                
-                if st.button("Submit my film strip!"):
-                    if guest_name.strip() == "":
-                        st.error("Please enter your name before submitting!")
+                    if i < len(st.session_state.selected_photos):
+                        p_id = st.session_state.selected_photos[i]
+                        st.image(f"images_for_app/{p_id}.jpg", use_container_width=True)
+                        st.caption(f"Slot {i+1}")
                     else:
-                        data = {
-                            "guest_name": guest_name,
-                            "slot_1": st.session_state.selected_photos[0],
-                            "slot_2": st.session_state.selected_photos[1],
-                            "slot_3": st.session_state.selected_photos[2],
-                            "slot_4": st.session_state.selected_photos[3]
-                        }
-                        supabase.table("submissions").insert(data).execute()
-                        st.session_state.has_submitted = True
-                        st.session_state.guest_name = guest_name
-                        st.rerun()
-            
-            st.write("### The Photo Stack")
-            for i in range(10):
-                st.image(f"images_for_app/{i}.jpg", use_container_width=True)
-                st.write(hints[i])
-                if i in st.session_state.selected_photos:
-                    idx = st.session_state.selected_photos.index(i) + 1
-                    st.success(f"✅ Selected as #{idx}")
-                elif len(st.session_state.selected_photos) < 4:
-                    st.button(f"Select Photo", key=f"btn_{i}", on_click=select_photo, args=(i,))
+                        st.write(f"*(Empty)*")
+                
+                st.button("Clear Selection", on_click=clear_photos, use_container_width=True)
+                
                 st.divider()
+                if len(st.session_state.selected_photos) == 4:
+                    st.warning("⚠️ Fair Play Rule: One submission per person.")
+                    guest_name = st.text_input("Enter your real name:")
+                    
+                    if st.button("Submit my film strip!", type="primary", use_container_width=True):
+                        if guest_name.strip() == "":
+                            st.error("Please enter your name!")
+                        else:
+                            data = {
+                                "guest_name": guest_name,
+                                "slot_1": st.session_state.selected_photos[0],
+                                "slot_2": st.session_state.selected_photos[1],
+                                "slot_3": st.session_state.selected_photos[2],
+                                "slot_4": st.session_state.selected_photos[3]
+                            }
+                            supabase.table("submissions").insert(data).execute()
+                            st.session_state.has_submitted = True
+                            st.session_state.guest_name = guest_name
+                            st.rerun()
+
+            with stack_col:
+                st.write("### The Photo Stack")
+                
+                # QoL CHANGE: Puts photos into a 2-column grid so 4 fit on a screen easily
+                grid_cols = st.columns(2)
+                for i in range(10):
+                    with grid_cols[i % 2]:
+                        st.image(f"images_for_app/{i}.jpg", use_container_width=True)
+                        st.write(f"<small>{hints[i]}</small>", unsafe_allow_html=True)
+                        
+                        if i in st.session_state.selected_photos:
+                            idx = st.session_state.selected_photos.index(i) + 1
+                            st.success(f"✅ #{idx}")
+                        elif len(st.session_state.selected_photos) < 4:
+                            st.button(f"Select", key=f"btn_{i}", on_click=select_photo, args=(i,), use_container_width=True)
+                        st.divider()
 
     else:
         st.warning("🛑 The game has ended! Look up at the projector for the results!")
