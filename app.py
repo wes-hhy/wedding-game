@@ -2,6 +2,7 @@ import streamlit as st
 from supabase import create_client, Client
 from PIL import Image, ImageOps
 import time
+from datetime import datetime
 
 st.set_page_config(page_title="Wedding Game", layout="centered", initial_sidebar_state="collapsed")
 
@@ -349,6 +350,3 @@ else:
             st.image(final_img, use_container_width=True)
         time.sleep(3)
         st.rerun()
-```eof
-
-Test this on your mobile device. The custom CSS targets the Streamlit interface and forcibly locks the images into side-by-side columns, giving you a beautiful 2-column grid!
