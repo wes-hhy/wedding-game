@@ -10,19 +10,20 @@ url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
-# --- THE PERMANENT ROLE LOCK ---
-if "app_role" not in st.session_state:
-    q_params = st.query_params
-    page_param = q_params.get("page", "")
-    if isinstance(page_param, list):
-        page_param = page_param[0] if len(page_param) > 0 else ""
-        
-    if page_param.lower() == "lobby" or "lobby" in q_params:
-        st.session_state.app_role = "lobby"
-    elif page_param.lower() == "admin" or "admin" in q_params:
-        st.session_state.app_role = "admin"
-    else:
-        st.session_state.app_role = "guest"
+# --- THE BULLETPROOF ROLE ROUTER ---
+# This grabs the URL. If Streamlit's rerun glitch temporarily hides the URL, 
+# it ignores it and relies on the role it already saved to memory!
+q_params = st.query_params
+page_param = q_params.get("page", "")
+if isinstance(page_param, list):
+    page_param = page_param[0] if len(page_param) > 0 else ""
+
+if "lobby" in q_params or page_param.lower() == "lobby":
+    st.session_state.app_role = "lobby"
+elif "admin" in q_params or page_param.lower() == "admin":
+    st.session_state.app_role = "admin"
+elif "app_role" not in st.session_state:
+    st.session_state.app_role = "guest"
 
 page = st.session_state.app_role
 
@@ -242,19 +243,23 @@ elif page == "lobby":
 
 # ----------------- GUEST SCREEN -----------------
 else:
-    # --- CUSTOM MOBILE GRID CSS ---
-    # This prevents Streamlit from stacking images on top of each other on mobile phones
+    # --- TRUE MOBILE GRID CSS ---
+    # This completely disables side-scrolling and forces Streamlit columns to wrap beautifully.
     st.markdown("""
     <style>
+        html, body, [data-testid="stAppViewContainer"] {
+            overflow-x: hidden !important;
+        }
         @media (max-width: 640px) {
-            div[data-testid="stHorizontalBlock"] {
+            [data-testid="stHorizontalBlock"] {
+                display: flex !important;
                 flex-direction: row !important;
-                flex-wrap: nowrap !important;
+                flex-wrap: wrap !important;
             }
-            div[data-testid="column"] {
-                width: 100% !important;
-                flex: 1 1 0% !important;
-                min-width: 0 !important;
+            [data-testid="column"] {
+                width: calc(50% - 1rem) !important;
+                flex: 1 1 calc(50% - 1rem) !important;
+                min-width: calc(50% - 1rem) !important;
                 padding: 0 5px !important;
             }
         }
