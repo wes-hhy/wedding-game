@@ -11,8 +11,6 @@ key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 # --- THE BULLETPROOF ROLE ROUTER ---
-# This grabs the URL. If Streamlit's rerun glitch temporarily hides the URL, 
-# it ignores it and relies on the role it already saved to memory!
 q_params = st.query_params
 page_param = q_params.get("page", "")
 if isinstance(page_param, list):
@@ -243,24 +241,40 @@ elif page == "lobby":
 
 # ----------------- GUEST SCREEN -----------------
 else:
-    # --- TRUE MOBILE GRID CSS ---
-    # This completely disables side-scrolling and forces Streamlit columns to wrap beautifully.
+    # --- TRUE MOBILE GRID & STICKY CSS ---
     st.markdown("""
     <style>
-        html, body, [data-testid="stAppViewContainer"] {
+        /* Disable horizontal scrolling */
+        html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
             overflow-x: hidden !important;
         }
+        
+        /* Force the Sequence Container to be a floating sticky header */
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(#sticky-sequence) {
+            position: -webkit-sticky !important;
+            position: sticky !important;
+            top: 0px !important;
+            z-index: 99999 !important;
+            background-color: var(--background-color) !important;
+            box-shadow: 0px 6px 15px rgba(0,0,0,0.1) !important;
+            border-radius: 12px !important;
+            padding: 15px !important;
+            margin-bottom: 20px !important;
+        }
+
+        /* Override Streamlit's default mobile stacking to create a 2-column grid */
         @media (max-width: 640px) {
             [data-testid="stHorizontalBlock"] {
                 display: flex !important;
                 flex-direction: row !important;
                 flex-wrap: wrap !important;
+                gap: 10px !important;
             }
             [data-testid="column"] {
-                width: calc(50% - 1rem) !important;
-                flex: 1 1 calc(50% - 1rem) !important;
-                min-width: calc(50% - 1rem) !important;
-                padding: 0 5px !important;
+                width: calc(50% - 10px) !important;
+                flex: 1 1 calc(50% - 10px) !important;
+                min-width: calc(50% - 10px) !important;
+                padding: 0 !important;
             }
         }
     </style>
@@ -281,49 +295,48 @@ else:
             st.image(final_img, use_container_width=True)
             st.info("📸 Take a screenshot of this page!")
         else:
-            # --- COMPACT MOBILE SEQUENCE ---
-            st.write("### 🎞️ Your Sequence")
-            
-            cols = st.columns(4)
-            for i in range(4):
-                with cols[i]:
-                    if i < len(st.session_state.selected_photos):
-                        p_id = st.session_state.selected_photos[i]
-                        st.image(f"images_for_app/{p_id}.jpg", use_container_width=True)
-                    else:
-                        st.write("*(Empty)*")
-            
-            if len(st.session_state.selected_photos) > 0:
-                st.button("Clear Selection", on_click=clear_photos, use_container_width=True)
+            # --- THE STICKY SEQUENCE CONTAINER ---
+            with st.container(border=True):
+                st.markdown('<div id="sticky-sequence"></div>', unsafe_allow_html=True)
+                st.write("### 🎞️ Your Sequence")
                 
-            if len(st.session_state.selected_photos) == 4:
-                st.divider()
-                st.warning("⚠️ Fair Play Rule: One submission per person.")
-                guest_name = st.text_input("Enter your real name:")
+                cols = st.columns(4)
+                for i in range(4):
+                    with cols[i]:
+                        if i < len(st.session_state.selected_photos):
+                            p_id = st.session_state.selected_photos[i]
+                            st.image(f"images_for_app/{p_id}.jpg", use_container_width=True)
+                        else:
+                            st.write("*(Empty)*")
                 
-                if st.button("Submit my film strip!", type="primary", use_container_width=True):
-                    if guest_name.strip() == "":
-                        st.error("Please enter your name!")
-                    else:
-                        data = {
-                            "guest_name": guest_name,
-                            "slot_1": st.session_state.selected_photos[0],
-                            "slot_2": st.session_state.selected_photos[1],
-                            "slot_3": st.session_state.selected_photos[2],
-                            "slot_4": st.session_state.selected_photos[3]
-                        }
-                        supabase.table("submissions").insert(data).execute()
-                        st.session_state.has_submitted = True
-                        st.session_state.guest_name = guest_name
-                        st.rerun()
-                        
-            st.divider()
-            
-            # --- 2-COLUMN STORY GALLERY ---
+                if len(st.session_state.selected_photos) > 0:
+                    st.button("Clear Selection", on_click=clear_photos, use_container_width=True)
+                    
+                if len(st.session_state.selected_photos) == 4:
+                    st.divider()
+                    st.warning("⚠️ Fair Play Rule: One submission per person.")
+                    guest_name = st.text_input("Enter your real name:")
+                    
+                    if st.button("Submit my film strip!", type="primary", use_container_width=True):
+                        if guest_name.strip() == "":
+                            st.error("Please enter your name!")
+                        else:
+                            data = {
+                                "guest_name": guest_name,
+                                "slot_1": st.session_state.selected_photos[0],
+                                "slot_2": st.session_state.selected_photos[1],
+                                "slot_3": st.session_state.selected_photos[2],
+                                "slot_4": st.session_state.selected_photos[3]
+                            }
+                            supabase.table("submissions").insert(data).execute()
+                            st.session_state.has_submitted = True
+                            st.session_state.guest_name = guest_name
+                            st.rerun()
+                            
             st.write("### The Story Gallery")
             st.info("Scroll down to read our story and select your 4 favorite memories.")
             
-            # Render images dynamically into a tight 2-column grid
+            # --- 2-COLUMN STORY GALLERY ---
             for i in range(0, 10, 2):
                 col1, col2 = st.columns(2)
                 
