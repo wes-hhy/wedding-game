@@ -241,51 +241,61 @@ elif page == "lobby":
 
 # ----------------- GUEST SCREEN -----------------
 else:
-    # --- BRUTE FORCE MOBILE CSS ---
+    # --- TRUE HORIZONTAL SCROLL & FIXED FOOTER CSS ---
     st.markdown("""
     <style>
-        /* 1. Prevent all left/right scrolling */
-        html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
-            overflow-x: hidden !important;
+        /* Give the app enough bottom padding so the fixed footer doesn't hide the gallery */
+        [data-testid="stAppViewContainer"] > .main .block-container {
+            padding-bottom: 300px !important;
         }
 
-        /* 2. BRUTE FORCE STICKY HEADER - Targeting the container border wrapper perfectly */
-        [data-testid="stVerticalBlockBorderWrapper"] {
-            position: -webkit-sticky !important;
-            position: sticky !important;
-            top: 0px !important;
-            z-index: 99999 !important;
-            background-color: var(--background-color) !important;
-            box-shadow: 0px 8px 16px rgba(0,0,0,0.15) !important;
-            margin-bottom: 20px !important;
-        }
-
-        /* 3. BRUTE FORCE GRID - Ignore Streamlit's mobile collapse completely */
-        [data-testid="stHorizontalBlock"] {
+        /* --- THE 10-ITEM HORIZONTAL GALLERY --- */
+        [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important;
             flex-wrap: nowrap !important;
-            gap: 10px !important;
-            width: 100% !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important; /* Smooth momentum scrolling on iOS */
+            gap: 15px !important;
+            padding-bottom: 10px !important;
+            scrollbar-width: none; /* Hide scrollbar Firefox */
         }
-
-        /* 4. Force columns to stay side-by-side and shrink equally */
-        [data-testid="column"] {
-            width: 50% !important;
-            min-width: 0 !important;
-            flex: 1 1 0% !important;
-            padding: 0 !important;
+        [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="stHorizontalBlock"]::-webkit-scrollbar {
+            display: none; /* Hide scrollbar Chrome/Safari */
         }
         
-        /* 5. Force images to scale down safely inside the grid */
-        [data-testid="stImage"] {
-            width: 100% !important;
+        /* Force EXACTLY 3.5 images on screen to intuitively imply swiping */
+        [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="column"] {
+            flex: 0 0 27vw !important;
+            width: 27vw !important;
+            min-width: 27vw !important;
+            padding: 0 !important;
         }
-        [data-testid="stImage"] img {
-            width: 100% !important;
-            max-width: 100% !important;
-            height: auto !important;
-            object-fit: contain !important;
+
+        /* --- THE FIXED FOOTER SEQUENCE --- */
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.footer-marker) {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 99999 !important;
+            background-color: var(--background-color, #ffffff) !important;
+            box-shadow: 0px -5px 20px rgba(0,0,0,0.15) !important;
+            border-radius: 20px 20px 0 0 !important;
+            margin: 0 !important;
+            padding: 15px 15px 30px 15px !important; /* Extra bottom padding for iPhone home bar */
+        }
+        
+        /* Forces the 4 sequence images strictly onto one row in the footer */
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.footer-marker) [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-wrap: nowrap !important;
+            gap: 5px !important;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.footer-marker) [data-testid="column"] {
+            flex: 1 1 0px !important;
+            width: 25% !important;
+            min-width: 25% !important;
+            padding: 0 !important;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -305,70 +315,72 @@ else:
             st.image(final_img, use_container_width=True)
             st.info("📸 Take a screenshot of this page!")
         else:
-            # --- THE STICKY SEQUENCE CONTAINER ---
-            # By giving this a border, our CSS above flawlessly targets it and pins it.
-            with st.container(border=True):
-                st.write("### 🎞️ Your Sequence")
+            st.write("### The Story Gallery")
+            st.info("👉 **Swipe left** to browse the memories and tap to select your sequence!")
+            
+            # --- THE HORIZONTAL SCROLL GALLERY ---
+            with st.container():
+                # Invisible marker that triggers our custom CSS for this specific container
+                st.markdown('<div class="gallery-marker"></div>', unsafe_allow_html=True)
                 
-                cols = st.columns(4)
+                g_cols = st.columns(10)
+                for i in range(10):
+                    with g_cols[i]:
+                        st.image(f"images_for_app/{i}.jpg", use_container_width=True)
+                        # Fixed height for captions so the grid buttons stay perfectly aligned horizontally
+                        st.markdown(f"<div style='font-size:11px; line-height:1.2; height:70px; overflow:hidden; margin-bottom:5px;'>{hints[i]}</div>", unsafe_allow_html=True)
+                        
+                        if i in st.session_state.selected_photos:
+                            idx = st.session_state.selected_photos.index(i) + 1
+                            st.success(f"✅ #{idx}")
+                        elif len(st.session_state.selected_photos) < 4:
+                            st.button(f"Select", key=f"btn_{i}", on_click=select_photo, args=(i,), use_container_width=True)
+                        else:
+                            st.button(f"Full", key=f"btn_{i}", disabled=True, use_container_width=True)
+                            
+            # --- THE FIXED FLOATING FOOTER ---
+            with st.container(border=True):
+                # Invisible marker that anchors this to the bottom of the screen
+                st.markdown('<div class="footer-marker"></div>', unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align:center; margin-top:0;'>🎞️ Your Sequence</h4>", unsafe_allow_html=True)
+                
+                f_cols = st.columns(4)
                 for i in range(4):
-                    with cols[i]:
+                    with f_cols[i]:
                         if i < len(st.session_state.selected_photos):
                             p_id = st.session_state.selected_photos[i]
                             st.image(f"images_for_app/{p_id}.jpg", use_container_width=True)
                         else:
-                            st.write("*(Empty)*")
+                            st.markdown("<div style='text-align:center; padding:15px 0; border:1px dashed #ccc; border-radius:5px; font-size:10px; color:#888;'>(Empty)</div>", unsafe_allow_html=True)
                 
-                if len(st.session_state.selected_photos) > 0:
+                # Dynamic Footer Buttons
+                if len(st.session_state.selected_photos) > 0 and len(st.session_state.selected_photos) < 4:
+                    st.write("")
                     st.button("Clear Selection", on_click=clear_photos, use_container_width=True)
                     
                 if len(st.session_state.selected_photos) == 4:
-                    st.divider()
-                    st.warning("⚠️ Fair Play Rule: One submission per person.")
-                    guest_name = st.text_input("Enter your real name:")
+                    st.write("")
+                    guest_name = st.text_input("Enter your real name:", placeholder="Required for verification")
                     
-                    if st.button("Submit my film strip!", type="primary", use_container_width=True):
-                        if guest_name.strip() == "":
-                            st.error("Please enter your name!")
-                        else:
-                            data = {
-                                "guest_name": guest_name,
-                                "slot_1": st.session_state.selected_photos[0],
-                                "slot_2": st.session_state.selected_photos[1],
-                                "slot_3": st.session_state.selected_photos[2],
-                                "slot_4": st.session_state.selected_photos[3]
-                            }
-                            supabase.table("submissions").insert(data).execute()
-                            st.session_state.has_submitted = True
-                            st.session_state.guest_name = guest_name
-                            st.rerun()
-                            
-            st.write("### The Story Gallery")
-            st.info("Scroll down to read our story and select your 4 favorite memories.")
-            
-            # --- 2-COLUMN STORY GALLERY ---
-            for i in range(0, 10, 2):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.image(f"images_for_app/{i}.jpg", use_container_width=True)
-                    st.write(f"<small>{hints[i]}</small>", unsafe_allow_html=True)
-                    if i in st.session_state.selected_photos:
-                        idx = st.session_state.selected_photos.index(i) + 1
-                        st.success(f"✅ #{idx}")
-                    elif len(st.session_state.selected_photos) < 4:
-                        st.button(f"Select", key=f"btn_{i}", on_click=select_photo, args=(i,), use_container_width=True)
-                        
-                with col2:
-                    if i + 1 < 10:
-                        st.image(f"images_for_app/{i+1}.jpg", use_container_width=True)
-                        st.write(f"<small>{hints[i+1]}</small>", unsafe_allow_html=True)
-                        if (i + 1) in st.session_state.selected_photos:
-                            idx = st.session_state.selected_photos.index(i+1) + 1
-                            st.success(f"✅ #{idx}")
-                        elif len(st.session_state.selected_photos) < 4:
-                            st.button(f"Select", key=f"btn_{i+1}", on_click=select_photo, args=(i+1,), use_container_width=True)
-                st.divider()
+                    sub_col1, sub_col2 = st.columns([2, 1])
+                    with sub_col1:
+                        if st.button("Submit Strip!", type="primary", use_container_width=True):
+                            if guest_name.strip() == "":
+                                st.error("Name required!")
+                            else:
+                                data = {
+                                    "guest_name": guest_name,
+                                    "slot_1": st.session_state.selected_photos[0],
+                                    "slot_2": st.session_state.selected_photos[1],
+                                    "slot_3": st.session_state.selected_photos[2],
+                                    "slot_4": st.session_state.selected_photos[3]
+                                }
+                                supabase.table("submissions").insert(data).execute()
+                                st.session_state.has_submitted = True
+                                st.session_state.guest_name = guest_name
+                                st.rerun()
+                    with sub_col2:
+                        st.button("Clear", on_click=clear_photos, use_container_width=True)
 
     else:
         st.warning("🛑 The game has ended! Look up at the projector for the results!")
