@@ -241,41 +241,51 @@ elif page == "lobby":
 
 # ----------------- GUEST SCREEN -----------------
 else:
-    # --- TRUE MOBILE GRID & STICKY CSS ---
+    # --- BRUTE FORCE MOBILE CSS ---
     st.markdown("""
     <style>
-        /* Disable horizontal scrolling */
+        /* 1. Prevent all left/right scrolling */
         html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
             overflow-x: hidden !important;
         }
-        
-        /* Force the Sequence Container to be a floating sticky header */
-        div[data-testid="stVerticalBlockBorderWrapper"]:has(#sticky-sequence) {
+
+        /* 2. BRUTE FORCE STICKY HEADER - Targeting the container border wrapper perfectly */
+        [data-testid="stVerticalBlockBorderWrapper"] {
             position: -webkit-sticky !important;
             position: sticky !important;
             top: 0px !important;
             z-index: 99999 !important;
             background-color: var(--background-color) !important;
-            box-shadow: 0px 6px 15px rgba(0,0,0,0.1) !important;
-            border-radius: 12px !important;
-            padding: 15px !important;
+            box-shadow: 0px 8px 16px rgba(0,0,0,0.15) !important;
             margin-bottom: 20px !important;
         }
 
-        /* Override Streamlit's default mobile stacking to create a 2-column grid */
-        @media (max-width: 640px) {
-            [data-testid="stHorizontalBlock"] {
-                display: flex !important;
-                flex-direction: row !important;
-                flex-wrap: wrap !important;
-                gap: 10px !important;
-            }
-            [data-testid="column"] {
-                width: calc(50% - 10px) !important;
-                flex: 1 1 calc(50% - 10px) !important;
-                min-width: calc(50% - 10px) !important;
-                padding: 0 !important;
-            }
+        /* 3. BRUTE FORCE GRID - Ignore Streamlit's mobile collapse completely */
+        [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 10px !important;
+            width: 100% !important;
+        }
+
+        /* 4. Force columns to stay side-by-side and shrink equally */
+        [data-testid="column"] {
+            width: 50% !important;
+            min-width: 0 !important;
+            flex: 1 1 0% !important;
+            padding: 0 !important;
+        }
+        
+        /* 5. Force images to scale down safely inside the grid */
+        [data-testid="stImage"] {
+            width: 100% !important;
+        }
+        [data-testid="stImage"] img {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            object-fit: contain !important;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -296,8 +306,8 @@ else:
             st.info("📸 Take a screenshot of this page!")
         else:
             # --- THE STICKY SEQUENCE CONTAINER ---
+            # By giving this a border, our CSS above flawlessly targets it and pins it.
             with st.container(border=True):
-                st.markdown('<div id="sticky-sequence"></div>', unsafe_allow_html=True)
                 st.write("### 🎞️ Your Sequence")
                 
                 cols = st.columns(4)
