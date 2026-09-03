@@ -237,7 +237,7 @@ elif page == "lobby":
     
     with text_col:
         if game_status == "lobby":
-            st.markdown("<h2 style='font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! 📸</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! 📸</h2>", unsafe_allow_html=True)
             st.markdown("<h3 style='font-size: 20px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Scan the QR code to join the waiting room!</h3>", unsafe_allow_html=True)
             
         elif game_status == "started":
