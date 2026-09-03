@@ -97,8 +97,11 @@ def generate_film_strip(selected_ids):
         bg.paste(img, (X_OFFSET, Y_POSITIONS[i]))
     return bg
 
-def generate_reveal_strip(revealed_list):
+# 🚨 ANTI-FLASH CACHING ENGINE 🚨
+@st.cache_resource
+def get_reveal_strip(revealed_str):
     bg = load_template().copy()
+    revealed_list = revealed_str.split(",") if revealed_str else []
     for i in range(4):
         if str(i + 1) in revealed_list:
             p_id = CORRECT_SEQUENCE[i]
@@ -226,32 +229,40 @@ elif page == "lobby":
     
     st.markdown("""
     <style>
-        /* Vertically centers the entire left column (Text + QR) relative to the tall image on the right! */
+        /* Only apply stretch to the main layout block, allowing nested columns to size naturally */
         [data-testid="stAppViewContainer"] > .main > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
-            align-items: center !important; 
+            align-items: stretch !important;
+        }
+        [data-testid="column"]:nth-of-type(1) {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+        }
+        .qr-wrapper {
+            margin-top: auto;
+            padding-bottom: 20px;
         }
     </style>
     """, unsafe_allow_html=True)
     
-    text_col, image_col = st.columns([1, 1.2], gap="large")
+    text_col, image_col = st.columns([1, 1.2])
     
     with text_col:
+        # Refined text sizes to allow space-between to naturally balance the layout
         if game_status == "lobby":
-            st.markdown("<h2 style='font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! 📸</h2>", unsafe_allow_html=True)
-            st.markdown("<h3 style='font-size: 20px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Scan the QR code to join the waiting room!</h3>", unsafe_allow_html=True)
-            
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! 📸</h2>", unsafe_allow_html=True)
+            st.markdown("<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Scan the QR code to join the waiting room!</h3>", unsafe_allow_html=True)
         elif game_status == "started":
-            st.markdown("<h2 style='font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! ⏳</h2>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='font-size: 20px; color: #444; margin-top: 0px; margin-bottom: 7px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! ⏳</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.info("Scan the code below to play! Fastest correct answer wins.")
-            
         elif game_status == "closed":
-            st.markdown("<h2 style='font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>🛑 TIME'S UP!</h2>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='font-size: 20px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions Locked In: {len(all_submissions)}</h3>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>🛑 TIME'S UP!</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions Locked In: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.markdown("<p style='font-size: 18px; color: #666;'>Eyes on the screen... let's reveal the answers!</p>", unsafe_allow_html=True)
             
         elif game_status.startswith("reveal|"):
-            st.markdown("<h2 style='font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 15px;'>The Master Code...</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>The Master Code...</h2>", unsafe_allow_html=True)
             revealed_slots = []
             parts = game_status.split("|")
             if len(parts) > 1 and parts[1] != "":
@@ -268,7 +279,7 @@ elif page == "lobby":
             st.markdown(html, unsafe_allow_html=True)
             
         elif game_status == "winners":
-            st.markdown("<h2 style='font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 15px;'>🎉 The Winners! 🎉</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🎉 The Winners! 🎉</h2>", unsafe_allow_html=True)
             if len(winners) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No one got the exact sequence! Let's check the Runner-Up board!</div>", unsafe_allow_html=True)
             else:
@@ -282,7 +293,7 @@ elif page == "lobby":
                 st.markdown(html, unsafe_allow_html=True)
                 
         elif game_status == "champion":
-            st.markdown("<h2 style='font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 15px;'>⚡ THE CHAMPION ⚡</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>⚡ THE CHAMPION ⚡</h2>", unsafe_allow_html=True)
             if len(winners) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>Mission Failed: No one decoded the perfect sequence!</div>", unsafe_allow_html=True)
             else:
@@ -293,7 +304,7 @@ elif page == "lobby":
                 st.markdown(html, unsafe_allow_html=True)
                 
         elif game_status == "runner_up":
-            st.markdown("<h2 style='font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 15px;'>🥈 The Runner-Up!</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🥈 The Runner-Up!</h2>", unsafe_allow_html=True)
             if len(ranked_submissions) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No submissions found!</div>", unsafe_allow_html=True)
             elif ranked_submissions[0]["score"] == 0:
@@ -311,7 +322,6 @@ elif page == "lobby":
 
         # --- THE CENTERED CRISP QR CODE ---
         if game_status in ["lobby", "started"]:
-            st.write("") # Natural gap
             qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
             with qr_c2:
                 if os.path.exists("images_for_app/qr.png"):
@@ -321,15 +331,16 @@ elif page == "lobby":
 
     with image_col:
         if game_status in ["lobby", "started", "closed"]:
-            st.image(load_template(), use_container_width=True)
+            # 🚨 FIX: Passing the direct file path prevents the massive PIL image base64 flash
+            st.image("images_for_app/Film Strip Empty_V2.jpg", use_container_width=True)
             
         elif game_status.startswith("reveal|"):
             parts = game_status.split("|")
-            revealed = parts[1].split(",") if len(parts) > 1 and parts[1] != "" else []
-            st.image(generate_reveal_strip(revealed), use_container_width=True)
+            revealed_str = parts[1] if len(parts) > 1 else ""
+            st.image(get_reveal_strip(revealed_str), use_container_width=True)
             
         elif game_status in ["winners", "champion", "runner_up"]:
-            st.image(generate_reveal_strip(["1", "2", "3", "4"]), use_container_width=True)
+            st.image(get_reveal_strip("1,2,3,4"), use_container_width=True)
 
     time.sleep(3)
     st.rerun()
