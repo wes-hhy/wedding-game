@@ -245,21 +245,23 @@ elif page == "lobby":
     text_col, image_col = st.columns([1, 1.2])
     
     with text_col:
+        # --- PRECISE HTML INJECTIONS FOR PERFECT PROJECTOR ALIGNMENT ---
         if game_status == "lobby":
-            st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
-            st.subheader("Scan the QR code to join the waiting room!")
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.2; margin-top: 40px; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! 📸</h2>", unsafe_allow_html=True)
+            st.markdown("<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Scan the QR code to join the waiting room!</h3>", unsafe_allow_html=True)
+            
         elif game_status == "started":
-            # Custom HTML to prevent massive line breaks
-            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! ⏳</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-top: 40px; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! ⏳</h2>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.info("Scan the code below to play! Fastest correct answer wins.")
+            
         elif game_status == "closed":
-            st.title("🛑 TIME'S UP!")
-            st.subheader(f"Total Submissions Locked In: {len(all_submissions)}")
-            st.write("Eyes on the screen... let's reveal the answers!")
+            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-top: 40px; margin-bottom: 0px;'>🛑 TIME'S UP!</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions Locked In: {len(all_submissions)}</h3>", unsafe_allow_html=True)
+            st.markdown("<p style='font-size: 18px; color: #666;'>Eyes on the screen... let's reveal the answers!</p>", unsafe_allow_html=True)
             
         elif game_status.startswith("reveal|"):
-            st.title("The Master Code...")
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.2; margin-top: 40px; margin-bottom: 15px;'>The Master Code...</h2>", unsafe_allow_html=True)
             revealed_slots = []
             parts = game_status.split("|")
             if len(parts) > 1 and parts[1] != "":
@@ -276,7 +278,7 @@ elif page == "lobby":
             st.markdown(html, unsafe_allow_html=True)
             
         elif game_status == "winners":
-            st.title("🎉 The Winners! 🎉")
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.2; margin-top: 40px; margin-bottom: 15px;'>🎉 The Winners! 🎉</h2>", unsafe_allow_html=True)
             if len(winners) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No one got the exact sequence! Let's check the Runner-Up board!</div>", unsafe_allow_html=True)
             else:
@@ -290,7 +292,7 @@ elif page == "lobby":
                 st.markdown(html, unsafe_allow_html=True)
                 
         elif game_status == "champion":
-            st.title("⚡ THE FASTEST CHAMPION ⚡")
+            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.2; margin-top: 40px; margin-bottom: 15px;'>⚡ THE CHAMPION ⚡</h2>", unsafe_allow_html=True)
             if len(winners) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>Mission Failed: No one decoded the perfect sequence!</div>", unsafe_allow_html=True)
             else:
@@ -301,7 +303,7 @@ elif page == "lobby":
                 st.markdown(html, unsafe_allow_html=True)
                 
         elif game_status == "runner_up":
-            st.title("🥈 The Closest Runner-Up!")
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.2; margin-top: 40px; margin-bottom: 15px;'>🥈 The Runner-Up!</h2>", unsafe_allow_html=True)
             if len(ranked_submissions) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No submissions found!</div>", unsafe_allow_html=True)
             elif ranked_submissions[0]["score"] == 0:
@@ -317,10 +319,12 @@ elif page == "lobby":
                     html += f"<div style='padding:12px; background-color:#e3f2fd; color:#1565c0; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🥈 {display_name} ({time_val:.2f}s)</div>"
                 st.markdown(html, unsafe_allow_html=True)
 
-    # --- THE CENTERED CRISP QR CODE (BALANCED) ---
+        # --- THE CENTERED CRISP QR CODE (ANCHORED) ---
         if game_status in ["lobby", "started"]:
-            # Removed the extra st.write("") spacer to save vertical room
-            qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) # Dialed back to 3.2 for the perfect sweet spot
+            # Invisible spring spacer to push the QR code down to flush with the bottom border
+            st.markdown("<div style='height: 15vh; min-height: 50px; max-height: 120px;'></div>", unsafe_allow_html=True)
+            
+            qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
             with qr_c2:
                 if os.path.exists("images_for_app/qr.png"):
                     st.image("images_for_app/qr.png", use_container_width=True)
