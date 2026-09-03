@@ -249,8 +249,9 @@ elif page == "lobby":
             st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
             st.subheader("Scan the QR code to join the waiting room!")
         elif game_status == "started":
-            st.title("The Photo Booth Challenge is LIVE! ⏳")
-            st.subheader(f"Total Submissions: {len(all_submissions)}")
+            # Custom HTML to prevent massive line breaks
+            st.markdown("<h2 style='font-size: 34px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>The Photo Booth Challenge is LIVE! ⏳</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.info("Scan the code below to play! Fastest correct answer wins.")
         elif game_status == "closed":
             st.title("🛑 TIME'S UP!")
@@ -316,10 +317,10 @@ elif page == "lobby":
                     html += f"<div style='padding:12px; background-color:#e3f2fd; color:#1565c0; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🥈 {display_name} ({time_val:.2f}s)</div>"
                 st.markdown(html, unsafe_allow_html=True)
 
-        # --- THE CENTERED CRISP QR CODE (1.5x BIGGER) ---
+    # --- THE CENTERED CRISP QR CODE (BALANCED) ---
         if game_status in ["lobby", "started"]:
-            st.write("") # Spacer
-            qr_c1, qr_c2, qr_c3 = st.columns([1, 5, 1])
+            # Removed the extra st.write("") spacer to save vertical room
+            qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) # Dialed back to 3.2 for the perfect sweet spot
             with qr_c2:
                 if os.path.exists("images_for_app/qr.png"):
                     st.image("images_for_app/qr.png", use_container_width=True)
