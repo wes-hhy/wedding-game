@@ -110,7 +110,8 @@ subs_response = supabase.table("submissions").select("*").execute()
 all_submissions = subs_response.data
 winners = [s for s in all_submissions if [s["slot_1"], s["slot_2"], s["slot_3"], s["slot_4"]] == CORRECT_SEQUENCE]
 
-winners = sorted(winners, key=lambda x: x.get("time_taken", 9999.0))
+# Safely extract time_taken, converting None to 9999.0 to prevent TypeError
+winners = sorted(winners, key=lambda x: float(x.get("time_taken") or 9999.0))
 
 # ----------------- ADMIN SCREEN -----------------
 if page == "admin":
@@ -143,10 +144,8 @@ if page == "admin":
         for i in range(1, 5):
             with r_cols[i-1]:
                 if str(i) in revealed_slots:
-                    if st.button(f"Hide Slot {i}"):
-                        revealed_slots.remove(str(i))
-                        supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
-                        st.rerun()
+                    # One-way street: Replaced the 'Hide' button with locked text
+                    st.success(f"Slot {i} Revealed")
                 else:
                     if st.button(f"Reveal Slot {i}", type="primary"):
                         revealed_slots.append(str(i))
@@ -168,7 +167,25 @@ if page == "admin":
     st.write(f"**Correct Answers:** {len(winners)}")
     
     with st.expander("View All Submissions Data"):
-        st.dataframe(all_submissions)
+        if all_submissions:
+            # Dynamically reorder the columns for Admin readability
+            reordered_subs = []
+            for sub in all_submissions:
+                reordered_subs.append({
+                    "time_taken": sub.get("time_taken"),
+                    "table_number": sub.get("table_number"),
+                    "guest_name": sub.get("guest_name"),
+                    "slot_1": sub.get("slot_1"),
+                    "slot_2": sub.get("slot_2"),
+                    "slot_3": sub.get("slot_3"),
+                    "slot_4": sub.get("slot_4"),
+                    "submitted_at": sub.get("submitted_at"),
+                    "id": sub.get("id")
+                })
+            st.dataframe(reordered_subs)
+        else:
+            st.dataframe(all_submissions)
+            
         if st.button("🚨 CLEAR ALL SUBMISSIONS"):
             supabase.table("submissions").delete().gt("id", 0).execute()
             st.success("Database wiped!")
@@ -176,7 +193,6 @@ if page == "admin":
 # ----------------- PROJECTOR SCREEN -----------------
 elif page == "lobby":
     
-    # CSS to force the left column to stretch to full height, pushing the QR to the bottom
     st.markdown("""
     <style>
         [data-testid="stHorizontalBlock"] {
@@ -197,7 +213,6 @@ elif page == "lobby":
     text_col, image_col = st.columns([1, 1.2])
     
     with text_col:
-        # Top content
         if game_status == "lobby":
             st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
             st.subheader("Scan the QR code to join the waiting room!")
@@ -229,9 +244,10 @@ elif page == "lobby":
             else:
                 html = "<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>These guests got the perfect sequence:</div>"
                 for i, w in enumerate(winners[:5]):
+                    # Safely extract float for display to prevent TypeError
+                    time_val = float(w.get('time_taken') or 0.0)
                     display_name = f"Table {w.get('table_number', '?')} - {w['guest_name']}"
-                    time_display = f"{w.get('time_taken', 0.0):.2f}s"
-                    html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🏆 {display_name} ({time_display})</div>"
+                    html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🏆 {display_name} ({time_val:.2f}s)</div>"
                 if len(winners) > 5:
                     html += f"<div style='padding:10px; font-family:sans-serif;'>...and {len(winners) - 5} more!</div>"
                 st.markdown(html, unsafe_allow_html=True)
@@ -239,21 +255,20 @@ elif page == "lobby":
             st.title("⚡ THE FASTEST CHAMPION ⚡")
             if len(winners) > 0:
                 champ = winners[0]
+                time_val = float(champ.get('time_taken') or 0.0)
                 display_name = f"Table {champ.get('table_number', '?')} - {champ['guest_name']}"
-                time_display = f"{champ.get('time_taken', 0.0):.2f} seconds"
                 html = f"""
                 <div style='padding:15px; background-color:#fff3e0; color:#e65100; border-radius:8px; margin-bottom:10px; font-family:sans-serif;'>
                     <h3 style='margin:0; color:#e65100;'>👑 {display_name}</h3>
-                    <p style='margin-top:5px;'>Locked in their answer in exactly <b>{time_display}</b>!</p>
+                    <p style='margin-top:5px;'>Locked in their answer in exactly <b>{time_val:.2f} seconds</b>!</p>
                 </div>
                 """
                 st.markdown(html, unsafe_allow_html=True)
 
-        # Bottom content (QR code anchored to the bottom of the left column)
         st.markdown('<div class="qr-wrapper">', unsafe_allow_html=True)
         if game_status in ["lobby", "started"]:
             if os.path.exists("images_for_app/qr.png"):
-                st.image("images_for_app/qr.png", width=180)  # Downsized for cleaner scaling
+                st.image("images_for_app/qr.png", width=180) 
             else:
                 st.info("⚠️ Admin: Upload qr.png to images_for_app to display it here.")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -275,7 +290,6 @@ elif page == "lobby":
 
 # ----------------- GUEST SCREEN -----------------
 else:
-    # --- TRUE HORIZONTAL SCROLL & FIXED FOOTER CSS ---
     st.markdown("""
     <style>
         [data-testid="stAppViewContainer"] > .main .block-container { padding-bottom: 300px !important; }
@@ -345,18 +359,20 @@ else:
             st.title("Welcome to the Photo Booth Challenge! 📸")
             st.write("We have laid out 10 of our favorite memories. Can you figure out the master sequence?")
             
-            ex_col1, ex_col2 = st.columns([1, 1.3])
-            with ex_col1:
-                # Generates the completed AV dummy strip on the fly as a visual guide
+            # --- SIDE BY SIDE MINI-STRIPS ---
+            img_col1, img_col2 = st.columns(2)
+            with img_col1:
+                st.image(load_template(), use_container_width=True, caption="1. The Empty Strip")
+            with img_col2:
                 dummy_strip = generate_film_strip([0, 7, 2, 8])
-                st.image(dummy_strip, use_container_width=True, caption="Build your film strip")
-            with ex_col2:
-                st.info("""
-                **How to Play:**
-                1. **Decode the Captions:** Read carefully on what is written for each photo. Every caption is a hint tied to a number.
-                2. **Build the Strip:** Swipe and select your 4 photos in the perfect sequence.
-                """)
-                st.warning("⏱️ **Fastest time wins!** Your timer starts the exact millisecond you click start. Do not close the app or you will lose your progress.")
+                st.image(dummy_strip, use_container_width=True, caption="2. The Goal")
+
+            st.info("""
+            **How to Play:**
+            1. **Decode the Captions:** Read carefully on what is written for each photo.
+            2. **Build the Strip:** Swipe and select your 4 photos in the perfect sequence.
+            """)
+            st.warning("⏱️ **Fastest time wins!** Your timer starts the exact millisecond you click start. Do not close the app or you will lose your progress.")
             
             st.divider()
             st.write("### Register to Play")
@@ -373,15 +389,19 @@ else:
                 else:
                     st.session_state.table_number = input_table.strip()
                     st.session_state.guest_name = input_name.strip()
-                    st.session_state.start_time = time.time()  # Start the hidden millisecond clock!
+                    st.session_state.start_time = time.time()  
                     st.session_state.game_started = True
                     st.rerun()
 
         else:
             # --- THE ACTIVE SPEED-RUN GAME ---
             st.title("Photo Booth Challenge 📱")
+            
+            # The Pressure-Cooker Hint
+            st.info("💡 **Hint:** *Every picture tells a story, and every story counts. Take a close look at the empty film strip... can you figure out which 4 memories unlock our special day?*")
+            
             st.write("### The Story Gallery")
-            st.info("👉 **Swipe left** to browse the memories and tap to select your sequence!")
+            st.write("👉 **Swipe left** to browse the memories and tap to select your sequence!")
             
             with st.container():
                 st.markdown('<div class="gallery-marker"></div>', unsafe_allow_html=True)
