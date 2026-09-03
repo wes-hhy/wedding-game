@@ -2,6 +2,7 @@ import streamlit as st
 from supabase import create_client, Client
 from PIL import Image, ImageOps
 import time
+import os
 from datetime import datetime
 
 st.set_page_config(page_title="Wedding Game", layout="centered", initial_sidebar_state="collapsed")
@@ -64,12 +65,19 @@ def load_and_resize_photo(photo_id):
     img = Image.open(f"images_for_app/{photo_id}.jpg").convert("RGBA")
     return ImageOps.fit(img, (BOX_WIDTH, BOX_HEIGHT), Image.Resampling.LANCZOS)
 
+# --- SESSION MEMORY ---
 if "selected_photos" not in st.session_state:
     st.session_state.selected_photos = []
 if "has_submitted" not in st.session_state:
     st.session_state.has_submitted = False
 if "guest_name" not in st.session_state:
     st.session_state.guest_name = ""
+if "table_number" not in st.session_state:
+    st.session_state.table_number = ""
+if "game_started" not in st.session_state:
+    st.session_state.game_started = False
+if "start_time" not in st.session_state:
+    st.session_state.start_time = 0.0
 
 def select_photo(photo_id):
     if len(st.session_state.selected_photos) < 4 and photo_id not in st.session_state.selected_photos:
@@ -101,7 +109,9 @@ game_status = response.data[0]["status"]
 subs_response = supabase.table("submissions").select("*").execute()
 all_submissions = subs_response.data
 winners = [s for s in all_submissions if [s["slot_1"], s["slot_2"], s["slot_3"], s["slot_4"]] == CORRECT_SEQUENCE]
-winners = sorted(winners, key=lambda x: x["submitted_at"])
+
+# Sort by fastest completion time, defaulting to 9999 seconds if data is missing/corrupted
+winners = sorted(winners, key=lambda x: x.get("time_taken", 9999.0))
 
 # ----------------- ADMIN SCREEN -----------------
 if page == "admin":
@@ -172,12 +182,18 @@ elif page == "lobby":
     with text_col:
         if game_status == "lobby":
             st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
-            st.subheader("Scan the QR code on your table to join the waiting room!")
+            st.subheader("Scan the QR code to join the waiting room!")
+            if os.path.exists("images_for_app/qr.png"):
+                st.image("images_for_app/qr.png", width=300)
+            else:
+                st.info("⚠️ Admin: Upload qr.png to images_for_app to display it here.")
             
         elif game_status == "started":
             st.title("The game is LIVE! ⏳")
             st.subheader(f"Total Submissions So Far: {len(all_submissions)}")
-            st.info("Pick your 4 photos quickly! Fastest correct answer wins.")
+            st.info("Scan the code below to play! Fastest correct answer wins.")
+            if os.path.exists("images_for_app/qr.png"):
+                st.image("images_for_app/qr.png", width=250)
             
         elif game_status == "closed":
             st.title("🛑 TIME'S UP!")
@@ -206,7 +222,10 @@ elif page == "lobby":
             else:
                 html = "<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>These guests got the perfect sequence:</div>"
                 for i, w in enumerate(winners[:5]):
-                    html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🏆 {w['guest_name']}</div>"
+                    # Format name with table number, and display time
+                    display_name = f"Table {w.get('table_number', '?')} - {w['guest_name']}"
+                    time_display = f"{w.get('time_taken', 0.0):.2f}s"
+                    html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🏆 {display_name} ({time_display})</div>"
                 if len(winners) > 5:
                     html += f"<div style='padding:10px; font-family:sans-serif;'>...and {len(winners) - 5} more!</div>"
                 st.markdown(html, unsafe_allow_html=True)
@@ -215,11 +234,12 @@ elif page == "lobby":
             st.title("⚡ THE FASTEST CHAMPION ⚡")
             if len(winners) > 0:
                 champ = winners[0]
-                time_str = champ['submitted_at'].split("T")[1][:8]
+                display_name = f"Table {champ.get('table_number', '?')} - {champ['guest_name']}"
+                time_display = f"{champ.get('time_taken', 0.0):.2f} seconds"
                 html = f"""
                 <div style='padding:15px; background-color:#fff3e0; color:#e65100; border-radius:8px; margin-bottom:10px; font-family:sans-serif;'>
-                    <h3 style='margin:0; color:#e65100;'>👑 {champ['guest_name']}</h3>
-                    <p style='margin-top:5px;'>Locked in their answer at exactly <b>{time_str}</b>!</p>
+                    <h3 style='margin:0; color:#e65100;'>👑 {display_name}</h3>
+                    <p style='margin-top:5px;'>Locked in their answer in exactly <b>{time_display}</b>!</p>
                 </div>
                 """
                 st.markdown(html, unsafe_allow_html=True)
@@ -244,26 +264,19 @@ else:
     # --- TRUE HORIZONTAL SCROLL & FIXED FOOTER CSS ---
     st.markdown("""
     <style>
-        /* Give the app enough bottom padding so the fixed footer doesn't hide the gallery */
-        [data-testid="stAppViewContainer"] > .main .block-container {
-            padding-bottom: 300px !important;
-        }
-
-        /* --- THE 10-ITEM HORIZONTAL GALLERY --- */
+        [data-testid="stAppViewContainer"] > .main .block-container { padding-bottom: 300px !important; }
+        
         [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch !important; /* Smooth momentum scrolling on iOS */
+            -webkit-overflow-scrolling: touch !important;
             gap: 15px !important;
             padding-bottom: 10px !important;
-            scrollbar-width: none; /* Hide scrollbar Firefox */
+            scrollbar-width: none; 
         }
-        [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="stHorizontalBlock"]::-webkit-scrollbar {
-            display: none; /* Hide scrollbar Chrome/Safari */
-        }
+        [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="stHorizontalBlock"]::-webkit-scrollbar { display: none; }
         
-        /* Force EXACTLY 3.5 images on screen to intuitively imply swiping */
         [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="column"] {
             flex: 0 0 27vw !important;
             width: 27vw !important;
@@ -271,7 +284,6 @@ else:
             padding: 0 !important;
         }
 
-        /* --- THE FIXED FOOTER SEQUENCE --- */
         [data-testid="stVerticalBlockBorderWrapper"]:has(.footer-marker) {
             position: fixed !important;
             bottom: 0 !important;
@@ -282,10 +294,9 @@ else:
             box-shadow: 0px -5px 20px rgba(0,0,0,0.15) !important;
             border-radius: 20px 20px 0 0 !important;
             margin: 0 !important;
-            padding: 15px 15px 30px 15px !important; /* Extra bottom padding for iPhone home bar */
+            padding: 15px 15px 30px 15px !important; 
         }
         
-        /* Forces the 4 sequence images strictly onto one row in the footer */
         [data-testid="stVerticalBlockBorderWrapper"]:has(.footer-marker) [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-wrap: nowrap !important;
@@ -300,34 +311,65 @@ else:
     </style>
     """, unsafe_allow_html=True)
 
-    st.title("Photo Booth Challenge 📱")
-    
     if game_status == "lobby":
-        st.info("The game hasn't started yet! Hang tight, the emcee will begin shortly.")
+        st.title("Photo Booth Challenge 📱")
+        st.info("The game hasn't started yet! Keep an eye on the projector.")
         time.sleep(3)
         st.rerun()
         
     elif game_status == "started":
         if st.session_state.has_submitted:
-            st.success("Answers locked in! Look at the projector!")
+            st.title("Photo Booth Challenge 📱")
+            st.success("Answers locked in! Keep an eye on the projector!")
             st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>Official Submission:<br>{st.session_state.guest_name}</h3>", unsafe_allow_html=True)
             final_img = generate_film_strip(st.session_state.selected_photos)
             st.image(final_img, use_container_width=True)
-            st.info("📸 Take a screenshot of this page!")
+            st.info("📸 Take a screenshot of this page as your digital receipt!")
+        
+        elif not st.session_state.game_started:
+            # --- THE WELCOME / REGISTRATION PAGE ---
+            st.title("Welcome to the Photo Booth Challenge! 📸")
+            st.write("We have laid out 10 of our favorite memories. Can you arrange the correct 4 photos in the exact chronological order of our relationship?")
+            
+            st.info("""
+            **The Rules:**
+            1. **One entry per person.** Fair play!
+            2. **Fastest time wins.** Your timer starts the exact millisecond you click start. 
+            3. **Do not close the app.** Closing or refreshing your browser will reset your progress, and you will have to register again!
+            """)
+            
+            st.divider()
+            st.write("### Register to Play")
+            
+            t_col, n_col = st.columns([1, 2])
+            with t_col:
+                input_table = st.text_input("Table Number", placeholder="e.g. 12")
+            with n_col:
+                input_name = st.text_input("Your Real Name", placeholder="For prize verification!")
+                
+            if st.button("Start Challenge ⏱️", type="primary", use_container_width=True):
+                if input_table.strip() == "" or input_name.strip() == "":
+                    st.error("Please enter both your table number and your name to begin!")
+                else:
+                    st.session_state.table_number = input_table.strip()
+                    st.session_state.guest_name = input_name.strip()
+                    st.session_state.start_time = time.time()  # Start the hidden millisecond clock!
+                    st.session_state.game_started = True
+                    st.rerun()
+
         else:
+            # --- THE ACTIVE SPEED-RUN GAME ---
+            st.title("Photo Booth Challenge 📱")
             st.write("### The Story Gallery")
             st.info("👉 **Swipe left** to browse the memories and tap to select your sequence!")
             
-            # --- THE HORIZONTAL SCROLL GALLERY ---
             with st.container():
-                # Invisible marker that triggers our custom CSS for this specific container
                 st.markdown('<div class="gallery-marker"></div>', unsafe_allow_html=True)
                 
                 g_cols = st.columns(10)
                 for i in range(10):
                     with g_cols[i]:
                         st.image(f"images_for_app/{i}.jpg", use_container_width=True)
-                        # Fixed height for captions so the grid buttons stay perfectly aligned horizontally
                         st.markdown(f"<div style='font-size:11px; line-height:1.2; height:70px; overflow:hidden; margin-bottom:5px;'>{hints[i]}</div>", unsafe_allow_html=True)
                         
                         if i in st.session_state.selected_photos:
@@ -338,9 +380,7 @@ else:
                         else:
                             st.button(f"Full", key=f"btn_{i}", disabled=True, use_container_width=True)
                             
-            # --- THE FIXED FLOATING FOOTER ---
             with st.container(border=True):
-                # Invisible marker that anchors this to the bottom of the screen
                 st.markdown('<div class="footer-marker"></div>', unsafe_allow_html=True)
                 st.markdown("<h4 style='text-align:center; margin-top:0;'>🎞️ Your Sequence</h4>", unsafe_allow_html=True)
                 
@@ -353,32 +393,30 @@ else:
                         else:
                             st.markdown("<div style='text-align:center; padding:15px 0; border:1px dashed #ccc; border-radius:5px; font-size:10px; color:#888;'>(Empty)</div>", unsafe_allow_html=True)
                 
-                # Dynamic Footer Buttons
                 if len(st.session_state.selected_photos) > 0 and len(st.session_state.selected_photos) < 4:
                     st.write("")
                     st.button("Clear Selection", on_click=clear_photos, use_container_width=True)
                     
                 if len(st.session_state.selected_photos) == 4:
                     st.write("")
-                    guest_name = st.text_input("Enter your real name:", placeholder="Required for verification")
-                    
                     sub_col1, sub_col2 = st.columns([2, 1])
                     with sub_col1:
-                        if st.button("Submit Strip!", type="primary", use_container_width=True):
-                            if guest_name.strip() == "":
-                                st.error("Name required!")
-                            else:
-                                data = {
-                                    "guest_name": guest_name,
-                                    "slot_1": st.session_state.selected_photos[0],
-                                    "slot_2": st.session_state.selected_photos[1],
-                                    "slot_3": st.session_state.selected_photos[2],
-                                    "slot_4": st.session_state.selected_photos[3]
-                                }
-                                supabase.table("submissions").insert(data).execute()
-                                st.session_state.has_submitted = True
-                                st.session_state.guest_name = guest_name
-                                st.rerun()
+                        if st.button("Submit & Stop Clock! 🏁", type="primary", use_container_width=True):
+                            # The exact millisecond they hit submit minus their start time
+                            final_time = round(time.time() - st.session_state.start_time, 2)
+                            
+                            data = {
+                                "guest_name": st.session_state.guest_name,
+                                "table_number": st.session_state.table_number,
+                                "time_taken": final_time,
+                                "slot_1": st.session_state.selected_photos[0],
+                                "slot_2": st.session_state.selected_photos[1],
+                                "slot_3": st.session_state.selected_photos[2],
+                                "slot_4": st.session_state.selected_photos[3]
+                            }
+                            supabase.table("submissions").insert(data).execute()
+                            st.session_state.has_submitted = True
+                            st.rerun()
                     with sub_col2:
                         st.button("Clear", on_click=clear_photos, use_container_width=True)
 
