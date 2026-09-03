@@ -235,6 +235,10 @@ elif page == "lobby":
             flex-direction: column !important;
             justify-content: space-between !important;
         }
+        .qr-wrapper {
+            margin-top: auto;
+            padding-bottom: 20px;
+        }
     </style>
     """, unsafe_allow_html=True)
     
@@ -244,8 +248,8 @@ elif page == "lobby":
         if game_status == "lobby":
             st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
             st.subheader("Scan the QR code to join the waiting room!")
-        elif game_status == "started":
-            st.title("The game is LIVE! ⏳")
+    elif game_status == "started":
+            st.title("The Photo Booth Challenge is LIVE! ⏳")
             st.subheader(f"Total Submissions: {len(all_submissions)}")
             st.info("Scan the code below to play! Fastest correct answer wins.")
         elif game_status == "closed":
@@ -312,10 +316,10 @@ elif page == "lobby":
                     html += f"<div style='padding:12px; background-color:#e3f2fd; color:#1565c0; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🥈 {display_name} ({time_val:.2f}s)</div>"
                 st.markdown(html, unsafe_allow_html=True)
 
-        # --- THE CENTERED CRISP QR CODE ---
+        # --- THE CENTERED CRISP QR CODE (1.5x BIGGER) ---
         if game_status in ["lobby", "started"]:
             st.write("") # Spacer
-            qr_c1, qr_c2, qr_c3 = st.columns([1, 1.8, 1])
+            qr_c1, qr_c2, qr_c3 = st.columns([1, 5, 1])
             with qr_c2:
                 if os.path.exists("images_for_app/qr.png"):
                     st.image("images_for_app/qr.png", use_container_width=True)
@@ -419,7 +423,7 @@ else:
     elif game_status == "started":
         if st.session_state.has_submitted:
             st.title("Wesley & Angel's Photo Booth Challenge 📱")
-            st.success("Answers locked in! Keep an eye on the projector!")
+            st.success("Answers locked in! Thanks for playing. Enjoy your dinner and stay tuned for the grand reveal later tonight! 🥂")
             
             st.markdown("<h3 style='text-align: center; color: #333; font-family: serif; margin-bottom: 10px;'>Submission Locked 🔐</h3>", unsafe_allow_html=True)
             html_receipt = f"""
@@ -499,7 +503,7 @@ else:
                 for i in range(10):
                     with g_cols[i]:
                         st.image(f"images_for_app/{i}.jpg", use_container_width=True)
-                        st.markdown(f"<div style='font-size:13px; line-height:1.3; height:95px; overflow:hidden; margin-bottom:5px; white-space:normal;'>{hints[i]}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='font-size:15px; line-height:1.4; height:115px; overflow:hidden; margin-bottom:5px; white-space:normal;'>{hints[i]}</div>", unsafe_allow_html=True)
                         
                         if i in st.session_state.selected_photos:
                             idx = st.session_state.selected_photos.index(i) + 1
