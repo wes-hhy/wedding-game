@@ -102,16 +102,35 @@ def generate_reveal_strip(revealed_list):
             bg.paste(img, (X_OFFSET, Y_POSITIONS[i]))
     return bg
 
+# --- THE BACKGROUND SCORING ENGINE ---
+def get_score(sub):
+    score = 0
+    try:
+        if int(sub.get("slot_1", -1)) == CORRECT_SEQUENCE[0]: score += 1
+        if int(sub.get("slot_2", -1)) == CORRECT_SEQUENCE[1]: score += 1
+        if int(sub.get("slot_3", -1)) == CORRECT_SEQUENCE[2]: score += 1
+        if int(sub.get("slot_4", -1)) == CORRECT_SEQUENCE[3]: score += 1
+    except (ValueError, TypeError):
+        pass
+    return score
+
 # --- FETCH GAME STATE & SUBMISSIONS ---
 response = supabase.table("game_state").select("status").eq("id", 1).execute()
 game_status = response.data[0]["status"]
 
 subs_response = supabase.table("submissions").select("*").execute()
 all_submissions = subs_response.data
-winners = [s for s in all_submissions if [s["slot_1"], s["slot_2"], s["slot_3"], s["slot_4"]] == CORRECT_SEQUENCE]
 
-# Safely extract time_taken, converting None to 9999.0 to prevent TypeError
+# Score every submission and separate the true winners
+for sub in all_submissions:
+    sub["score"] = get_score(sub)
+
+# Winners (4/4) sorted by speed
+winners = [s for s in all_submissions if s["score"] == 4]
 winners = sorted(winners, key=lambda x: float(x.get("time_taken") or 9999.0))
+
+# Everyone ranked by highest score first, then fastest speed
+ranked_submissions = sorted(all_submissions, key=lambda x: (-x.get("score", 0), float(x.get("time_taken") or 9999.0)))
 
 # ----------------- ADMIN SCREEN -----------------
 if page == "admin":
@@ -131,47 +150,51 @@ if page == "admin":
 
     st.divider()
     
-    if game_status not in ["winners", "champion"]:
-        st.subheader("2. Projector Reveal Sequence")
-        
-        revealed_slots = []
-        if game_status.startswith("reveal|"):
-            parts = game_status.split("|")
-            if len(parts) > 1 and parts[1] != "":
-                revealed_slots = parts[1].split(",")
+    # 🚨 FIX: Removed the wrapper that was hiding these controls!
+    st.subheader("2. Projector Reveal Sequence")
+    
+    revealed_slots = []
+    if game_status.startswith("reveal|"):
+        parts = game_status.split("|")
+        if len(parts) > 1 and parts[1] != "":
+            revealed_slots = parts[1].split(",")
 
-        r_cols = st.columns(4)
-        for i in range(1, 5):
-            with r_cols[i-1]:
-                if str(i) in revealed_slots:
-                    # One-way street: Replaced the 'Hide' button with locked text
-                    st.success(f"Slot {i} Revealed")
-                else:
-                    if st.button(f"Reveal Slot {i}", type="primary"):
-                        revealed_slots.append(str(i))
-                        supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
-                        st.rerun()
+    r_cols = st.columns(4)
+    for i in range(1, 5):
+        with r_cols[i-1]:
+            if str(i) in revealed_slots:
+                st.success(f"Slot {i} Revealed")
+            else:
+                if st.button(f"Reveal Slot {i}", type="primary"):
+                    revealed_slots.append(str(i))
+                    supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
+                    st.rerun()
 
-        st.write("")
-        w_col1, w_col2 = st.columns(2)
-        with w_col1:
-            if st.button("🏆 Show Top 5 Winners"):
-                supabase.table("game_state").update({"status": "winners"}).eq("id", 1).execute()
-        with w_col2:
-            if st.button("⚡ Show Fastest Champion"):
-                supabase.table("game_state").update({"status": "champion"}).eq("id", 1).execute()
+    st.divider()
+    
+    st.subheader("3. Final Results")
+    w_col1, w_col2, w_col3 = st.columns(3)
+    with w_col1:
+        if st.button("🏆 Show Top 5 Winners"):
+            supabase.table("game_state").update({"status": "winners"}).eq("id", 1).execute()
+    with w_col2:
+        if st.button("⚡ Show Fastest Champion"):
+            supabase.table("game_state").update({"status": "champion"}).eq("id", 1).execute()
+    with w_col3:
+        if st.button("🥈 Show Closest Runner-Up"):
+            supabase.table("game_state").update({"status": "runner_up"}).eq("id", 1).execute()
 
-        st.divider()
-        
+    st.divider()
+    
     st.subheader(f"Live Stats ({len(all_submissions)} Total Submissions)")
-    st.write(f"**Correct Answers:** {len(winners)}")
+    st.write(f"**Perfect Answers:** {len(winners)}")
     
     with st.expander("View All Submissions Data"):
         if all_submissions:
-            # Dynamically reorder the columns for Admin readability
             reordered_subs = []
             for sub in all_submissions:
                 reordered_subs.append({
+                    "score": f"{sub.get('score')}/4", # Added live score column!
                     "time_taken": sub.get("time_taken"),
                     "table_number": sub.get("table_number"),
                     "guest_name": sub.get("guest_name"),
@@ -224,36 +247,61 @@ elif page == "lobby":
             st.title("🛑 TIME'S UP!")
             st.subheader(f"Total Submissions Locked In: {len(all_submissions)}")
             st.write("Eyes on the screen... let's reveal the answers!")
+            
         elif game_status.startswith("reveal|"):
-            st.title("The Correct Sequence...")
+            st.title("The Master Code...")
             revealed_slots = []
             parts = game_status.split("|")
             if len(parts) > 1 and parts[1] != "":
                 revealed_slots = parts[1].split(",")
+            
             html = "<h3>Reveal Status:</h3>"
             for i in range(1, 5):
                 if str(i) in revealed_slots:
-                    html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>Slot {i}: Revealed! 🎉</div>"
+                    p_id = CORRECT_SEQUENCE[i-1]
+                    hint_text = hints[p_id]
+                    html += f"""
+                    <div style='display: flex; background-color: #f8f9fa; border-left: 6px solid #2e7d32; border-radius: 4px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden;'>
+                        <div style='background-color: #2e7d32; color: white; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>
+                            {p_id}
+                        </div>
+                        <div style='padding: 12px 15px; color: #333; font-size: 14px; display: flex; align-items: center; line-height: 1.4;'>
+                            <i>"{hint_text}"</i>
+                        </div>
+                    </div>
+                    """
                 else:
-                    html += f"<div style='padding:12px; background-color:#f8f9fa; color:#6c757d; border-radius:8px; margin-bottom:10px; font-family:sans-serif;'>Slot {i}: ❓ Hidden</div>"
+                    html += f"""
+                    <div style='display: flex; background-color: #fafafa; border-left: 6px solid #ccc; border-radius: 4px; margin-bottom: 12px; border: 1px dashed #e0e0e0; overflow: hidden;'>
+                        <div style='background-color: #eee; color: #aaa; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>
+                            ?
+                        </div>
+                        <div style='padding: 12px 15px; color: #999; font-size: 14px; display: flex; align-items: center; font-style: italic;'>
+                            Slot {i} Locked
+                        </div>
+                    </div>
+                    """
             st.markdown(html, unsafe_allow_html=True)
+            
         elif game_status == "winners":
             st.title("🎉 The Winners! 🎉")
             if len(winners) == 0:
-                st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No one got the exact sequence! The emcee will announce the closest runner-up.</div>", unsafe_allow_html=True)
+                st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No one got the exact sequence! Let's check the Runner-Up board!</div>", unsafe_allow_html=True)
             else:
                 html = "<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>These guests got the perfect sequence:</div>"
                 for i, w in enumerate(winners[:5]):
-                    # Safely extract float for display to prevent TypeError
                     time_val = float(w.get('time_taken') or 0.0)
                     display_name = f"Table {w.get('table_number', '?')} - {w['guest_name']}"
                     html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🏆 {display_name} ({time_val:.2f}s)</div>"
                 if len(winners) > 5:
                     html += f"<div style='padding:10px; font-family:sans-serif;'>...and {len(winners) - 5} more!</div>"
                 st.markdown(html, unsafe_allow_html=True)
+                
         elif game_status == "champion":
             st.title("⚡ THE FASTEST CHAMPION ⚡")
-            if len(winners) > 0:
+            if len(winners) == 0:
+                st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>Mission Failed: No one decoded the perfect sequence!</div>", unsafe_allow_html=True)
+            else:
                 champ = winners[0]
                 time_val = float(champ.get('time_taken') or 0.0)
                 display_name = f"Table {champ.get('table_number', '?')} - {champ['guest_name']}"
@@ -263,6 +311,25 @@ elif page == "lobby":
                     <p style='margin-top:5px;'>Locked in their answer in exactly <b>{time_val:.2f} seconds</b>!</p>
                 </div>
                 """
+                st.markdown(html, unsafe_allow_html=True)
+                
+        # 🚨 NEW RUNNER-UP FALLBACK SCREEN
+        elif game_status == "runner_up":
+            st.title("🥈 The Closest Runner-Up!")
+            if len(ranked_submissions) == 0:
+                st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No submissions found!</div>", unsafe_allow_html=True)
+            elif ranked_submissions[0]["score"] == 0:
+                st.markdown("<div style='padding:15px; background-color:#fff3e0; color:#e65100; border-radius:8px; font-family:sans-serif;'>Wow. Not a single person got even one photo in the right slot!</div>", unsafe_allow_html=True)
+            else:
+                best_score = ranked_submissions[0]["score"]
+                html = f"<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>Nobody got all 4, but these guests were the closest (<b>{best_score}/4 correct</b>):</div>"
+                
+                # Show top 3 who achieved the best score
+                top_runners = [s for s in ranked_submissions if s["score"] == best_score]
+                for i, w in enumerate(top_runners[:3]):
+                    time_val = float(w.get('time_taken') or 0.0)
+                    display_name = f"Table {w.get('table_number', '?')} - {w['guest_name']}"
+                    html += f"<div style='padding:12px; background-color:#e3f2fd; color:#1565c0; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🥈 {display_name} ({time_val:.2f}s)</div>"
                 st.markdown(html, unsafe_allow_html=True)
 
         st.markdown('<div class="qr-wrapper">', unsafe_allow_html=True)
@@ -282,7 +349,7 @@ elif page == "lobby":
             revealed = parts[1].split(",") if len(parts) > 1 and parts[1] != "" else []
             st.image(generate_reveal_strip(revealed), use_container_width=True)
             
-        elif game_status in ["winners", "champion"]:
+        elif game_status in ["winners", "champion", "runner_up"]: # Shows correct strip for all results
             st.image(generate_reveal_strip(["1", "2", "3", "4"]), use_container_width=True)
 
     time.sleep(3)
@@ -294,6 +361,21 @@ else:
     <style>
         [data-testid="stAppViewContainer"] > .main .block-container { padding-bottom: 300px !important; }
         
+        /* --- WELCOME SCREEN IMAGES SIDE-BY-SIDE ON MOBILE --- */
+        [data-testid="stVerticalBlock"]:has(.welcome-images-marker) [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 10px !important;
+        }
+        [data-testid="stVerticalBlock"]:has(.welcome-images-marker) [data-testid="column"] {
+            width: 50% !important;
+            flex: 1 1 50% !important;
+            min-width: 50% !important;
+            padding: 0 !important;
+        }
+
+        /* --- THE HORIZONTAL SCROLL GALLERY --- */
         [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-wrap: nowrap !important;
@@ -306,12 +388,13 @@ else:
         [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="stHorizontalBlock"]::-webkit-scrollbar { display: none; }
         
         [data-testid="stVerticalBlock"]:has(.gallery-marker) [data-testid="column"] {
-            flex: 0 0 27vw !important;
-            width: 27vw !important;
-            min-width: 27vw !important;
+            flex: 0 0 25vw !important;
+            width: 25vw !important;
+            min-width: 25vw !important;
             padding: 0 !important;
         }
 
+        /* --- THE FIXED FLOATING FOOTER --- */
         [data-testid="stVerticalBlockBorderWrapper"]:has(.footer-marker) {
             position: fixed !important;
             bottom: 0 !important;
@@ -355,22 +438,23 @@ else:
             st.info("📸 Take a screenshot of this page as your digital receipt!")
         
         elif not st.session_state.game_started:
-            # --- THE WELCOME / REGISTRATION PAGE ---
             st.title("Welcome to the Photo Booth Challenge! 📸")
             st.write("We have laid out 10 of our favorite memories. Can you figure out the master sequence?")
             
-            # --- SIDE BY SIDE MINI-STRIPS ---
-            img_col1, img_col2 = st.columns(2)
-            with img_col1:
-                st.image(load_template(), use_container_width=True, caption="1. The Empty Strip")
-            with img_col2:
-                dummy_strip = generate_film_strip([0, 7, 2, 8])
-                st.image(dummy_strip, use_container_width=True, caption="2. The Goal")
+            with st.container():
+                st.markdown('<div class="welcome-images-marker"></div>', unsafe_allow_html=True)
+                img_col1, img_col2 = st.columns(2)
+                with img_col1:
+                    st.image(load_template(), use_container_width=True, caption="1. The Empty Strip")
+                with img_col2:
+                    dummy_strip = generate_film_strip([0, 7, 2, 8])
+                    st.image(dummy_strip, use_container_width=True, caption="2. The Goal")
 
             st.info("""
             **How to Play:**
             1. **Decode the Captions:** Read carefully on what is written for each photo.
             2. **Build the Strip:** Swipe and select your 4 photos in the perfect sequence.
+            3. **Fair Play:** Strictly ONE entry per person. We are watching! 👀
             """)
             st.warning("⏱️ **Fastest time wins!** Your timer starts the exact millisecond you click start. Do not close the app or you will lose your progress.")
             
@@ -394,10 +478,7 @@ else:
                     st.rerun()
 
         else:
-            # --- THE ACTIVE SPEED-RUN GAME ---
             st.title("Photo Booth Challenge 📱")
-            
-            # The Pressure-Cooker Hint
             st.info("💡 **Hint:** *Every picture tells a story, and every story counts. Take a close look at the empty film strip... can you figure out which 4 memories unlock our special day?*")
             
             st.write("### The Story Gallery")
@@ -410,7 +491,7 @@ else:
                 for i in range(10):
                     with g_cols[i]:
                         st.image(f"images_for_app/{i}.jpg", use_container_width=True)
-                        st.markdown(f"<div style='font-size:11px; line-height:1.2; height:70px; overflow:hidden; margin-bottom:5px;'>{hints[i]}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='font-size:13px; line-height:1.3; height:95px; overflow:hidden; margin-bottom:5px; white-space:normal;'>{hints[i]}</div>", unsafe_allow_html=True)
                         
                         if i in st.session_state.selected_photos:
                             idx = st.session_state.selected_photos.index(i) + 1
