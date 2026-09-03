@@ -250,7 +250,7 @@ elif page == "lobby":
             st.subheader("Scan the QR code to join the waiting room!")
         elif game_status == "started":
             # Custom HTML to prevent massive line breaks
-            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! ⏳</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! ⏳</h2>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.info("Scan the code below to play! Fastest correct answer wins.")
         elif game_status == "closed":
