@@ -150,25 +150,30 @@ if page == "admin":
 
     st.divider()
     
-    # 🚨 FIX: Removed the wrapper that was hiding these controls!
     st.subheader("2. Projector Reveal Sequence")
     
-    revealed_slots = []
-    if game_status.startswith("reveal|"):
+    # 🚨 FIX: The new Staging Button logic
+    if not game_status.startswith("reveal|"):
+        if st.button("🔓 Enter Reveal Mode", type="primary", use_container_width=True):
+            supabase.table("game_state").update({"status": "reveal|"}).eq("id", 1).execute()
+            st.rerun()
+        st.info("Click to display the 4 locked vaults on the projector before revealing answers.")
+    else:
+        revealed_slots = []
         parts = game_status.split("|")
         if len(parts) > 1 and parts[1] != "":
             revealed_slots = parts[1].split(",")
 
-    r_cols = st.columns(4)
-    for i in range(1, 5):
-        with r_cols[i-1]:
-            if str(i) in revealed_slots:
-                st.success(f"Slot {i} Revealed")
-            else:
-                if st.button(f"Reveal Slot {i}", type="primary"):
-                    revealed_slots.append(str(i))
-                    supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
-                    st.rerun()
+        r_cols = st.columns(4)
+        for i in range(1, 5):
+            with r_cols[i-1]:
+                if str(i) in revealed_slots:
+                    st.success(f"Slot {i} Revealed")
+                else:
+                    if st.button(f"Reveal Slot {i}", type="primary"):
+                        revealed_slots.append(str(i))
+                        supabase.table("game_state").update({"status": f"reveal|{','.join(revealed_slots)}"}).eq("id", 1).execute()
+                        st.rerun()
 
     st.divider()
     
@@ -194,7 +199,7 @@ if page == "admin":
             reordered_subs = []
             for sub in all_submissions:
                 reordered_subs.append({
-                    "score": f"{sub.get('score')}/4", # Added live score column!
+                    "score": f"{sub.get('score')}/4", 
                     "time_taken": sub.get("time_taken"),
                     "table_number": sub.get("table_number"),
                     "guest_name": sub.get("guest_name"),
@@ -260,27 +265,10 @@ elif page == "lobby":
                 if str(i) in revealed_slots:
                     p_id = CORRECT_SEQUENCE[i-1]
                     hint_text = hints[p_id]
-                    html += f"""
-                    <div style='display: flex; background-color: #f8f9fa; border-left: 6px solid #2e7d32; border-radius: 4px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden;'>
-                        <div style='background-color: #2e7d32; color: white; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>
-                            {p_id}
-                        </div>
-                        <div style='padding: 12px 15px; color: #333; font-size: 14px; display: flex; align-items: center; line-height: 1.4;'>
-                            <i>"{hint_text}"</i>
-                        </div>
-                    </div>
-                    """
+                    # 🚨 FIX: Rebuilt HTML strings without indentation to prevent Markdown code-block errors
+                    html += f"<div style='display: flex; background-color: #f8f9fa; border-left: 6px solid #2e7d32; border-radius: 4px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden;'><div style='background-color: #2e7d32; color: white; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>{p_id}</div><div style='padding: 12px 15px; color: #333; font-size: 14px; display: flex; align-items: center; line-height: 1.4;'><i>\"{hint_text}\"</i></div></div>"
                 else:
-                    html += f"""
-                    <div style='display: flex; background-color: #fafafa; border-left: 6px solid #ccc; border-radius: 4px; margin-bottom: 12px; border: 1px dashed #e0e0e0; overflow: hidden;'>
-                        <div style='background-color: #eee; color: #aaa; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>
-                            ?
-                        </div>
-                        <div style='padding: 12px 15px; color: #999; font-size: 14px; display: flex; align-items: center; font-style: italic;'>
-                            Slot {i} Locked
-                        </div>
-                    </div>
-                    """
+                    html += f"<div style='display: flex; background-color: #fafafa; border-left: 6px solid #ccc; border-radius: 4px; margin-bottom: 12px; border: 1px dashed #e0e0e0; overflow: hidden;'><div style='background-color: #eee; color: #aaa; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>?</div><div style='padding: 12px 15px; color: #999; font-size: 14px; display: flex; align-items: center; font-style: italic;'>Slot {i} Locked</div></div>"
             st.markdown(html, unsafe_allow_html=True)
             
         elif game_status == "winners":
@@ -305,15 +293,9 @@ elif page == "lobby":
                 champ = winners[0]
                 time_val = float(champ.get('time_taken') or 0.0)
                 display_name = f"Table {champ.get('table_number', '?')} - {champ['guest_name']}"
-                html = f"""
-                <div style='padding:15px; background-color:#fff3e0; color:#e65100; border-radius:8px; margin-bottom:10px; font-family:sans-serif;'>
-                    <h3 style='margin:0; color:#e65100;'>👑 {display_name}</h3>
-                    <p style='margin-top:5px;'>Locked in their answer in exactly <b>{time_val:.2f} seconds</b>!</p>
-                </div>
-                """
+                html = f"<div style='padding:15px; background-color:#fff3e0; color:#e65100; border-radius:8px; margin-bottom:10px; font-family:sans-serif;'><h3 style='margin:0; color:#e65100;'>👑 {display_name}</h3><p style='margin-top:5px;'>Locked in their answer in exactly <b>{time_val:.2f} seconds</b>!</p></div>"
                 st.markdown(html, unsafe_allow_html=True)
                 
-        # 🚨 NEW RUNNER-UP FALLBACK SCREEN
         elif game_status == "runner_up":
             st.title("🥈 The Closest Runner-Up!")
             if len(ranked_submissions) == 0:
@@ -324,7 +306,6 @@ elif page == "lobby":
                 best_score = ranked_submissions[0]["score"]
                 html = f"<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>Nobody got all 4, but these guests were the closest (<b>{best_score}/4 correct</b>):</div>"
                 
-                # Show top 3 who achieved the best score
                 top_runners = [s for s in ranked_submissions if s["score"] == best_score]
                 for i, w in enumerate(top_runners[:3]):
                     time_val = float(w.get('time_taken') or 0.0)
@@ -349,7 +330,7 @@ elif page == "lobby":
             revealed = parts[1].split(",") if len(parts) > 1 and parts[1] != "" else []
             st.image(generate_reveal_strip(revealed), use_container_width=True)
             
-        elif game_status in ["winners", "champion", "runner_up"]: # Shows correct strip for all results
+        elif game_status in ["winners", "champion", "runner_up"]:
             st.image(generate_reveal_strip(["1", "2", "3", "4"]), use_container_width=True)
 
     time.sleep(3)
