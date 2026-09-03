@@ -40,8 +40,8 @@ Y_POSITIONS = [
     Y_START + (BOX_HEIGHT + Y_GAP) * 3
 ]
 
-# AV Test Dummy Sequence
-CORRECT_SEQUENCE = [0, 7, 2, 8]
+# Locked in for the wedding day!
+CORRECT_SEQUENCE = [1, 2, 0, 9]
 
 hints = {
     0: "Day zero. Our very first date, getting to know each other where it all beGINs.",
@@ -110,7 +110,6 @@ subs_response = supabase.table("submissions").select("*").execute()
 all_submissions = subs_response.data
 winners = [s for s in all_submissions if [s["slot_1"], s["slot_2"], s["slot_3"], s["slot_4"]] == CORRECT_SEQUENCE]
 
-# Sort by fastest completion time, defaulting to 9999 seconds if data is missing/corrupted
 winners = sorted(winners, key=lambda x: x.get("time_taken", 9999.0))
 
 # ----------------- ADMIN SCREEN -----------------
@@ -177,36 +176,45 @@ if page == "admin":
 # ----------------- PROJECTOR SCREEN -----------------
 elif page == "lobby":
     
+    # CSS to force the left column to stretch to full height, pushing the QR to the bottom
+    st.markdown("""
+    <style>
+        [data-testid="stHorizontalBlock"] {
+            align-items: stretch !important;
+        }
+        [data-testid="column"]:nth-of-type(1) {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+        }
+        .qr-wrapper {
+            margin-top: auto;
+            padding-bottom: 20px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
     text_col, image_col = st.columns([1, 1.2])
     
     with text_col:
+        # Top content
         if game_status == "lobby":
             st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
             st.subheader("Scan the QR code to join the waiting room!")
-            if os.path.exists("images_for_app/qr.png"):
-                st.image("images_for_app/qr.png", width=300)
-            else:
-                st.info("⚠️ Admin: Upload qr.png to images_for_app to display it here.")
-            
         elif game_status == "started":
             st.title("The game is LIVE! ⏳")
-            st.subheader(f"Total Submissions So Far: {len(all_submissions)}")
+            st.subheader(f"Total Submissions: {len(all_submissions)}")
             st.info("Scan the code below to play! Fastest correct answer wins.")
-            if os.path.exists("images_for_app/qr.png"):
-                st.image("images_for_app/qr.png", width=250)
-            
         elif game_status == "closed":
             st.title("🛑 TIME'S UP!")
             st.subheader(f"Total Submissions Locked In: {len(all_submissions)}")
             st.write("Eyes on the screen... let's reveal the answers!")
-            
         elif game_status.startswith("reveal|"):
             st.title("The Correct Sequence...")
             revealed_slots = []
             parts = game_status.split("|")
             if len(parts) > 1 and parts[1] != "":
                 revealed_slots = parts[1].split(",")
-            
             html = "<h3>Reveal Status:</h3>"
             for i in range(1, 5):
                 if str(i) in revealed_slots:
@@ -214,7 +222,6 @@ elif page == "lobby":
                 else:
                     html += f"<div style='padding:12px; background-color:#f8f9fa; color:#6c757d; border-radius:8px; margin-bottom:10px; font-family:sans-serif;'>Slot {i}: ❓ Hidden</div>"
             st.markdown(html, unsafe_allow_html=True)
-                        
         elif game_status == "winners":
             st.title("🎉 The Winners! 🎉")
             if len(winners) == 0:
@@ -222,14 +229,12 @@ elif page == "lobby":
             else:
                 html = "<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>These guests got the perfect sequence:</div>"
                 for i, w in enumerate(winners[:5]):
-                    # Format name with table number, and display time
                     display_name = f"Table {w.get('table_number', '?')} - {w['guest_name']}"
                     time_display = f"{w.get('time_taken', 0.0):.2f}s"
                     html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🏆 {display_name} ({time_display})</div>"
                 if len(winners) > 5:
                     html += f"<div style='padding:10px; font-family:sans-serif;'>...and {len(winners) - 5} more!</div>"
                 st.markdown(html, unsafe_allow_html=True)
-                    
         elif game_status == "champion":
             st.title("⚡ THE FASTEST CHAMPION ⚡")
             if len(winners) > 0:
@@ -243,6 +248,15 @@ elif page == "lobby":
                 </div>
                 """
                 st.markdown(html, unsafe_allow_html=True)
+
+        # Bottom content (QR code anchored to the bottom of the left column)
+        st.markdown('<div class="qr-wrapper">', unsafe_allow_html=True)
+        if game_status in ["lobby", "started"]:
+            if os.path.exists("images_for_app/qr.png"):
+                st.image("images_for_app/qr.png", width=180)  # Downsized for cleaner scaling
+            else:
+                st.info("⚠️ Admin: Upload qr.png to images_for_app to display it here.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with image_col:
         if game_status in ["lobby", "started", "closed"]:
@@ -329,14 +343,20 @@ else:
         elif not st.session_state.game_started:
             # --- THE WELCOME / REGISTRATION PAGE ---
             st.title("Welcome to the Photo Booth Challenge! 📸")
-            st.write("We have laid out 10 of our favorite memories. Can you arrange the correct 4 photos in the exact chronological order of our relationship?")
+            st.write("We have laid out 10 of our favorite memories. Can you figure out the master sequence?")
             
-            st.info("""
-            **The Rules:**
-            1. **One entry per person.** Fair play!
-            2. **Fastest time wins.** Your timer starts the exact millisecond you click start. 
-            3. **Do not close the app.** Closing or refreshing your browser will reset your progress, and you will have to register again!
-            """)
+            ex_col1, ex_col2 = st.columns([1, 1.3])
+            with ex_col1:
+                # Generates the completed AV dummy strip on the fly as a visual guide
+                dummy_strip = generate_film_strip([0, 7, 2, 8])
+                st.image(dummy_strip, use_container_width=True, caption="Build your film strip")
+            with ex_col2:
+                st.info("""
+                **How to Play:**
+                1. **Decode the Captions:** Read carefully on what is written for each photo. Every caption is a hint tied to a number.
+                2. **Build the Strip:** Swipe and select your 4 photos in the perfect sequence.
+                """)
+                st.warning("⏱️ **Fastest time wins!** Your timer starts the exact millisecond you click start. Do not close the app or you will lose your progress.")
             
             st.divider()
             st.write("### Register to Play")
@@ -402,7 +422,6 @@ else:
                     sub_col1, sub_col2 = st.columns([2, 1])
                     with sub_col1:
                         if st.button("Submit & Stop Clock! 🏁", type="primary", use_container_width=True):
-                            # The exact millisecond they hit submit minus their start time
                             final_time = round(time.time() - st.session_state.start_time, 2)
                             
                             data = {
