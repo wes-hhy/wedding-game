@@ -233,7 +233,7 @@ elif page == "lobby":
     </style>
     """, unsafe_allow_html=True)
     
-    text_col, image_col = st.columns([1, 1.2], gap="large")
+    text_col, image_col = st.columns([1, 1.2], gap="medium")
     
     with text_col:
         if game_status == "lobby":
