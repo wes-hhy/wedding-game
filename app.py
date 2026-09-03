@@ -461,12 +461,9 @@ else:
             st.divider()
             st.write("### Register to Play")
             
-            # --- THE VALIDATION & REGISTRATION GATEWAY ---
-            t_col, n_col = st.columns([1, 2])
-            with t_col:
-                input_table = st.selectbox("Table", options=TABLE_LIST)
-            with n_col:
-                input_name = st.text_input("Real Name", placeholder="For prize verification!")
+            # --- THE FULL-WIDTH REGISTRATION GATEWAY ---
+            input_table = st.selectbox("Table Number", options=TABLE_LIST)
+            input_name = st.text_input("Your Real Name", placeholder="For prize verification!")
                 
             if st.button("Start Challenge ⏱️", type="primary", use_container_width=True):
                 if input_table == "Select..." or input_name.strip() == "":
@@ -547,7 +544,6 @@ else:
                             }
                             supabase.table("submissions").insert(data).execute()
                             
-                            # Log the final time to memory so the receipt screen can print it
                             st.session_state.final_time = final_time
                             st.session_state.has_submitted = True
                             st.rerun()
