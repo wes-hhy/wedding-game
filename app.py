@@ -422,19 +422,24 @@ else:
             st.title("Photo Booth Challenge 📱")
             st.success("Answers locked in! Keep an eye on the projector!")
             
-            # --- THE PREMIUM DIGITAL RECEIPT ---
+            # --- THE COMPACT PREMIUM DIGITAL RECEIPT ---
+            st.markdown("<h3 style='text-align: center; color: #333; font-family: serif; margin-bottom: 10px;'>Submission Locked 🔐</h3>", unsafe_allow_html=True)
             html_receipt = f"""
-            <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; margin-bottom: 20px; border: 1px solid #e0e0e0;'>
-                <h3 style='color: #333; margin-bottom: 5px; font-family: serif; margin-top: 0;'>Submission Locked 🔐</h3>
-                <h4 style='color: #666; margin-top: 0; margin-bottom: 15px; font-weight: 500;'>Table {st.session_state.table_number} &bull; {st.session_state.guest_name}</h4>
-                <div style='background-color: #2e7d32; color: white; display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: bold;'>Speed: {st.session_state.final_time:.2f}s</div>
+            <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;'>
+                <div style='text-align: left; line-height: 1.2;'>
+                    <div style='color: #777; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;'>Table {st.session_state.table_number}</div>
+                    <div style='color: #333; font-size: 16px; font-weight: 600;'>{st.session_state.guest_name}</div>
+                </div>
+                <div style='background-color: #2e7d32; color: white; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: bold;'>
+                    ⏱️ {st.session_state.final_time:.2f}s
+                </div>
             </div>
             """
             st.markdown(html_receipt, unsafe_allow_html=True)
             
             final_img = generate_film_strip(st.session_state.selected_photos)
             st.image(final_img, use_container_width=True)
-            st.info("📸 Take a screenshot of this page as your digital receipt!")
+            st.info("📸 Take a screenshot of this page! **Make sure your name and time are clearly visible for prize verification.**")
         
         elif not st.session_state.game_started:
             st.title("Welcome to the Photo Booth Challenge! 📸")
@@ -469,7 +474,6 @@ else:
                 if input_table == "Select..." or input_name.strip() == "":
                     st.error("Please select your table and enter your name to begin!")
                 else:
-                    # Security Check: Prevent Duplicate Table + Name Submissions
                     is_duplicate = any(
                         s.get("guest_name", "").lower() == input_name.strip().lower() and 
                         str(s.get("table_number", "")) == input_table 
@@ -528,38 +532,43 @@ else:
                     
                 if len(st.session_state.selected_photos) == 4:
                     st.write("")
-                    sub_col1, sub_col2 = st.columns([2, 1])
-                    with sub_col1:
-                        if st.button("Submit & Stop Clock! 🏁", type="primary", use_container_width=True):
-                            final_time = round(time.time() - st.session_state.start_time, 2)
-                            
-                            data = {
-                                "guest_name": st.session_state.guest_name,
-                                "table_number": st.session_state.table_number,
-                                "time_taken": final_time,
-                                "slot_1": st.session_state.selected_photos[0],
-                                "slot_2": st.session_state.selected_photos[1],
-                                "slot_3": st.session_state.selected_photos[2],
-                                "slot_4": st.session_state.selected_photos[3]
-                            }
-                            supabase.table("submissions").insert(data).execute()
-                            
-                            st.session_state.final_time = final_time
-                            st.session_state.has_submitted = True
-                            st.rerun()
-                    with sub_col2:
-                        st.button("Clear", on_click=clear_photos, use_container_width=True)
+                    
+                    # 🚨 FIX: Buttons stacked top-down, completely breaking out of the squished horizontal column!
+                    if st.button("Submit & Stop Clock! 🏁", type="primary", use_container_width=True):
+                        final_time = round(time.time() - st.session_state.start_time, 2)
+                        
+                        data = {
+                            "guest_name": st.session_state.guest_name,
+                            "table_number": st.session_state.table_number,
+                            "time_taken": final_time,
+                            "slot_1": st.session_state.selected_photos[0],
+                            "slot_2": st.session_state.selected_photos[1],
+                            "slot_3": st.session_state.selected_photos[2],
+                            "slot_4": st.session_state.selected_photos[3]
+                        }
+                        supabase.table("submissions").insert(data).execute()
+                        
+                        st.session_state.final_time = final_time
+                        st.session_state.has_submitted = True
+                        st.rerun()
+                        
+                    st.button("Clear Selection", on_click=clear_photos, use_container_width=True)
 
     else:
         st.warning("🛑 The game has ended! Look up at the projector for the results!")
         if st.session_state.has_submitted:
             
-            # --- THE PREMIUM DIGITAL RECEIPT (LOCKED STATE) ---
+            # --- THE COMPACT PREMIUM DIGITAL RECEIPT (LOCKED STATE) ---
+            st.markdown("<h3 style='text-align: center; color: #333; font-family: serif; margin-bottom: 10px;'>Submission Locked 🔐</h3>", unsafe_allow_html=True)
             html_receipt = f"""
-            <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; margin-bottom: 20px; border: 1px solid #e0e0e0;'>
-                <h3 style='color: #333; margin-bottom: 5px; font-family: serif; margin-top: 0;'>Submission Locked 🔐</h3>
-                <h4 style='color: #666; margin-top: 0; margin-bottom: 15px; font-weight: 500;'>Table {st.session_state.table_number} &bull; {st.session_state.guest_name}</h4>
-                <div style='background-color: #2e7d32; color: white; display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: bold;'>Speed: {st.session_state.final_time:.2f}s</div>
+            <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;'>
+                <div style='text-align: left; line-height: 1.2;'>
+                    <div style='color: #777; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;'>Table {st.session_state.table_number}</div>
+                    <div style='color: #333; font-size: 16px; font-weight: 600;'>{st.session_state.guest_name}</div>
+                </div>
+                <div style='background-color: #2e7d32; color: white; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: bold;'>
+                    ⏱️ {st.session_state.final_time:.2f}s
+                </div>
             </div>
             """
             st.markdown(html_receipt, unsafe_allow_html=True)
