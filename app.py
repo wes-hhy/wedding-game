@@ -248,7 +248,7 @@ elif page == "lobby":
         if game_status == "lobby":
             st.title("Wesley & Angel’s Photo Booth Challenge! 📸")
             st.subheader("Scan the QR code to join the waiting room!")
-    elif game_status == "started":
+        elif game_status == "started":
             st.title("The Photo Booth Challenge is LIVE! ⏳")
             st.subheader(f"Total Submissions: {len(all_submissions)}")
             st.info("Scan the code below to play! Fastest correct answer wins.")
