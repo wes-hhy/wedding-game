@@ -226,17 +226,14 @@ elif page == "lobby":
     
     st.markdown("""
     <style>
-        [data-testid="stHorizontalBlock"] {
+        /* Only apply stretch to the main layout block, allowing nested columns to size naturally */
+        [data-testid="stAppViewContainer"] > .main > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
             align-items: stretch !important;
         }
         [data-testid="column"]:nth-of-type(1) {
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-        }
-        .qr-wrapper {
-            margin-top: auto;
-            padding-bottom: 20px;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -315,13 +312,15 @@ elif page == "lobby":
                     html += f"<div style='padding:12px; background-color:#e3f2fd; color:#1565c0; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🥈 {display_name} ({time_val:.2f}s)</div>"
                 st.markdown(html, unsafe_allow_html=True)
 
-        st.markdown('<div class="qr-wrapper">', unsafe_allow_html=True)
+        # --- THE CENTERED CRISP QR CODE ---
         if game_status in ["lobby", "started"]:
-            if os.path.exists("images_for_app/qr.png"):
-                st.image("images_for_app/qr.png", width=180) 
-            else:
-                st.info("⚠️ Admin: Upload qr.png to images_for_app to display it here.")
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.write("") # Spacer
+            qr_c1, qr_c2, qr_c3 = st.columns([1, 1.8, 1])
+            with qr_c2:
+                if os.path.exists("images_for_app/qr.png"):
+                    st.image("images_for_app/qr.png", use_container_width=True)
+                else:
+                    st.info("⚠️ Admin: Upload qr.png")
 
     with image_col:
         if game_status in ["lobby", "started", "closed"]:
@@ -412,17 +411,16 @@ else:
     """, unsafe_allow_html=True)
 
     if game_status == "lobby":
-        st.title("Photo Booth Challenge 📱")
+        st.title("Wesley & Angel's Photo Booth Challenge 📱")
         st.info("The game hasn't started yet! Keep an eye on the projector.")
         time.sleep(3)
         st.rerun()
         
     elif game_status == "started":
         if st.session_state.has_submitted:
-            st.title("Photo Booth Challenge 📱")
+            st.title("Wesley & Angel's Photo Booth Challenge 📱")
             st.success("Answers locked in! Keep an eye on the projector!")
             
-            # --- THE COMPACT PREMIUM DIGITAL RECEIPT ---
             st.markdown("<h3 style='text-align: center; color: #333; font-family: serif; margin-bottom: 10px;'>Submission Locked 🔐</h3>", unsafe_allow_html=True)
             html_receipt = f"""
             <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;'>
@@ -442,10 +440,9 @@ else:
             st.info("📸 Take a screenshot of this page! **Make sure your name and time are clearly visible for prize verification.**")
         
         elif not st.session_state.game_started:
-            st.title("Welcome to the Photo Booth Challenge! 📸")
-            st.write("We have laid out 10 of our favorite memories. Can you figure out the master sequence?")
+            st.title("Welcome to Wesley & Angel's Photo Booth Challenge! 📸")
+            st.write("We have laid out 10 of our favorite memories. Can you figure out the master sequence and unlock the true WAW factor?")
             
-            # --- THE TUTORIAL CAROUSEL ---
             with st.container():
                 st.markdown('<div class="tutorial-marker"></div>', unsafe_allow_html=True)
                 img_col1, img_col2 = st.columns(2)
@@ -466,7 +463,6 @@ else:
             st.divider()
             st.write("### Register to Play")
             
-            # --- THE FULL-WIDTH REGISTRATION GATEWAY ---
             input_table = st.selectbox("Table Number", options=TABLE_LIST)
             input_name = st.text_input("Your Real Name", placeholder="For prize verification!")
                 
@@ -490,8 +486,8 @@ else:
                         st.rerun()
 
         else:
-            st.title("Photo Booth Challenge 📱")
-            st.info("💡 **Hint:** *Every picture tells a story, and every story counts. Take a close look at the empty film strip... can you figure out which 4 memories unlock our special day?*")
+            st.title("Wesley & Angel's Photo Booth Challenge 📱")
+            st.info("💡 **Hint:** *Every picture tells a story, and every story counts. Take a close look at the empty film strip... can you figure out which 4 memories unlock the ultimate WAW factor?*")
             
             st.write("### The Story Gallery")
             st.write("👉 **Swipe left** to browse the memories and tap to select your sequence!")
@@ -533,7 +529,6 @@ else:
                 if len(st.session_state.selected_photos) == 4:
                     st.write("")
                     
-                    # 🚨 FIX: Buttons stacked top-down, completely breaking out of the squished horizontal column!
                     if st.button("Submit & Stop Clock! 🏁", type="primary", use_container_width=True):
                         final_time = round(time.time() - st.session_state.start_time, 2)
                         
@@ -558,7 +553,6 @@ else:
         st.warning("🛑 The game has ended! Look up at the projector for the results!")
         if st.session_state.has_submitted:
             
-            # --- THE COMPACT PREMIUM DIGITAL RECEIPT (LOCKED STATE) ---
             st.markdown("<h3 style='text-align: center; color: #333; font-family: serif; margin-bottom: 10px;'>Submission Locked 🔐</h3>", unsafe_allow_html=True)
             html_receipt = f"""
             <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;'>
