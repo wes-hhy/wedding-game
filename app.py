@@ -43,6 +43,8 @@ Y_POSITIONS = [
 # Locked in for the wedding day!
 CORRECT_SEQUENCE = [1, 2, 0, 9]
 
+TABLE_LIST = ["Select...", "VIP1", "VIP2", "1", "2", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "15", "16", "17", "18", "19", "20", "21", "22", "23", "25", "26", "27", "28", "29"]
+
 hints = {
     0: "Day zero. Our very first date, getting to know each other where it all beGINs.",
     1: "One down, many to come. Our first snowboard trip together!",
@@ -78,6 +80,8 @@ if "game_started" not in st.session_state:
     st.session_state.game_started = False
 if "start_time" not in st.session_state:
     st.session_state.start_time = 0.0
+if "final_time" not in st.session_state:
+    st.session_state.final_time = 0.0
 
 def select_photo(photo_id):
     if len(st.session_state.selected_photos) < 4 and photo_id not in st.session_state.selected_photos:
@@ -152,7 +156,6 @@ if page == "admin":
     
     st.subheader("2. Projector Reveal Sequence")
     
-    # 🚨 FIX: The new Staging Button logic
     if not game_status.startswith("reveal|"):
         if st.button("🔓 Enter Reveal Mode", type="primary", use_container_width=True):
             supabase.table("game_state").update({"status": "reveal|"}).eq("id", 1).execute()
@@ -265,7 +268,6 @@ elif page == "lobby":
                 if str(i) in revealed_slots:
                     p_id = CORRECT_SEQUENCE[i-1]
                     hint_text = hints[p_id]
-                    # 🚨 FIX: Rebuilt HTML strings without indentation to prevent Markdown code-block errors
                     html += f"<div style='display: flex; background-color: #f8f9fa; border-left: 6px solid #2e7d32; border-radius: 4px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden;'><div style='background-color: #2e7d32; color: white; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>{p_id}</div><div style='padding: 12px 15px; color: #333; font-size: 14px; display: flex; align-items: center; line-height: 1.4;'><i>\"{hint_text}\"</i></div></div>"
                 else:
                     html += f"<div style='display: flex; background-color: #fafafa; border-left: 6px solid #ccc; border-radius: 4px; margin-bottom: 12px; border: 1px dashed #e0e0e0; overflow: hidden;'><div style='background-color: #eee; color: #aaa; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>?</div><div style='padding: 12px 15px; color: #999; font-size: 14px; display: flex; align-items: center; font-style: italic;'>Slot {i} Locked</div></div>"
@@ -342,17 +344,23 @@ else:
     <style>
         [data-testid="stAppViewContainer"] > .main .block-container { padding-bottom: 300px !important; }
         
-        /* --- WELCOME SCREEN IMAGES SIDE-BY-SIDE ON MOBILE --- */
-        [data-testid="stVerticalBlock"]:has(.welcome-images-marker) [data-testid="stHorizontalBlock"] {
+        /* --- THE TUTORIAL CAROUSEL --- */
+        [data-testid="stVerticalBlock"]:has(.tutorial-marker) [data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important;
             flex-wrap: nowrap !important;
-            gap: 10px !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            gap: 15px !important;
+            padding-bottom: 10px !important;
+            scrollbar-width: none; 
         }
-        [data-testid="stVerticalBlock"]:has(.welcome-images-marker) [data-testid="column"] {
-            width: 50% !important;
-            flex: 1 1 50% !important;
-            min-width: 50% !important;
+        [data-testid="stVerticalBlock"]:has(.tutorial-marker) [data-testid="stHorizontalBlock"]::-webkit-scrollbar { display: none; }
+        
+        /* Sets the width to 75vw so the edge of the next image hints at swiping */
+        [data-testid="stVerticalBlock"]:has(.tutorial-marker) [data-testid="column"] {
+            flex: 0 0 75vw !important;
+            width: 75vw !important;
+            min-width: 75vw !important;
             padding: 0 !important;
         }
 
@@ -413,7 +421,17 @@ else:
         if st.session_state.has_submitted:
             st.title("Photo Booth Challenge 📱")
             st.success("Answers locked in! Keep an eye on the projector!")
-            st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>Official Submission:<br>{st.session_state.guest_name}</h3>", unsafe_allow_html=True)
+            
+            # --- THE PREMIUM DIGITAL RECEIPT ---
+            html_receipt = f"""
+            <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; margin-bottom: 20px; border: 1px solid #e0e0e0;'>
+                <h3 style='color: #333; margin-bottom: 5px; font-family: serif; margin-top: 0;'>Submission Locked 🔐</h3>
+                <h4 style='color: #666; margin-top: 0; margin-bottom: 15px; font-weight: 500;'>Table {st.session_state.table_number} &bull; {st.session_state.guest_name}</h4>
+                <div style='background-color: #2e7d32; color: white; display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: bold;'>Speed: {st.session_state.final_time:.2f}s</div>
+            </div>
+            """
+            st.markdown(html_receipt, unsafe_allow_html=True)
+            
             final_img = generate_film_strip(st.session_state.selected_photos)
             st.image(final_img, use_container_width=True)
             st.info("📸 Take a screenshot of this page as your digital receipt!")
@@ -422,11 +440,12 @@ else:
             st.title("Welcome to the Photo Booth Challenge! 📸")
             st.write("We have laid out 10 of our favorite memories. Can you figure out the master sequence?")
             
+            # --- THE TUTORIAL CAROUSEL ---
             with st.container():
-                st.markdown('<div class="welcome-images-marker"></div>', unsafe_allow_html=True)
+                st.markdown('<div class="tutorial-marker"></div>', unsafe_allow_html=True)
                 img_col1, img_col2 = st.columns(2)
                 with img_col1:
-                    st.image(load_template(), use_container_width=True, caption="1. The Empty Strip")
+                    st.image(load_template(), use_container_width=True, caption="1. The Empty Strip (Swipe 👉)")
                 with img_col2:
                     dummy_strip = generate_film_strip([0, 7, 2, 8])
                     st.image(dummy_strip, use_container_width=True, caption="2. The Goal")
@@ -442,21 +461,32 @@ else:
             st.divider()
             st.write("### Register to Play")
             
+            # --- THE VALIDATION & REGISTRATION GATEWAY ---
             t_col, n_col = st.columns([1, 2])
             with t_col:
-                input_table = st.text_input("Table Number", placeholder="e.g. 12")
+                input_table = st.selectbox("Table", options=TABLE_LIST)
             with n_col:
-                input_name = st.text_input("Your Real Name", placeholder="For prize verification!")
+                input_name = st.text_input("Real Name", placeholder="For prize verification!")
                 
             if st.button("Start Challenge ⏱️", type="primary", use_container_width=True):
-                if input_table.strip() == "" or input_name.strip() == "":
-                    st.error("Please enter both your table number and your name to begin!")
+                if input_table == "Select..." or input_name.strip() == "":
+                    st.error("Please select your table and enter your name to begin!")
                 else:
-                    st.session_state.table_number = input_table.strip()
-                    st.session_state.guest_name = input_name.strip()
-                    st.session_state.start_time = time.time()  
-                    st.session_state.game_started = True
-                    st.rerun()
+                    # Security Check: Prevent Duplicate Table + Name Submissions
+                    is_duplicate = any(
+                        s.get("guest_name", "").lower() == input_name.strip().lower() and 
+                        str(s.get("table_number", "")) == input_table 
+                        for s in all_submissions
+                    )
+                    
+                    if is_duplicate:
+                        st.error("🚨 Hold on! An entry for this exact name at this table already exists. One try per person!")
+                    else:
+                        st.session_state.table_number = input_table
+                        st.session_state.guest_name = input_name.strip()
+                        st.session_state.start_time = time.time()  
+                        st.session_state.game_started = True
+                        st.rerun()
 
         else:
             st.title("Photo Booth Challenge 📱")
@@ -516,6 +546,9 @@ else:
                                 "slot_4": st.session_state.selected_photos[3]
                             }
                             supabase.table("submissions").insert(data).execute()
+                            
+                            # Log the final time to memory so the receipt screen can print it
+                            st.session_state.final_time = final_time
                             st.session_state.has_submitted = True
                             st.rerun()
                     with sub_col2:
@@ -524,7 +557,17 @@ else:
     else:
         st.warning("🛑 The game has ended! Look up at the projector for the results!")
         if st.session_state.has_submitted:
-            st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>Official Submission:<br>{st.session_state.guest_name}</h3>", unsafe_allow_html=True)
+            
+            # --- THE PREMIUM DIGITAL RECEIPT (LOCKED STATE) ---
+            html_receipt = f"""
+            <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; margin-bottom: 20px; border: 1px solid #e0e0e0;'>
+                <h3 style='color: #333; margin-bottom: 5px; font-family: serif; margin-top: 0;'>Submission Locked 🔐</h3>
+                <h4 style='color: #666; margin-top: 0; margin-bottom: 15px; font-weight: 500;'>Table {st.session_state.table_number} &bull; {st.session_state.guest_name}</h4>
+                <div style='background-color: #2e7d32; color: white; display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: bold;'>Speed: {st.session_state.final_time:.2f}s</div>
+            </div>
+            """
+            st.markdown(html_receipt, unsafe_allow_html=True)
+            
             final_img = generate_film_strip(st.session_state.selected_photos)
             st.image(final_img, use_container_width=True)
         time.sleep(3)
