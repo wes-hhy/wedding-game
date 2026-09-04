@@ -233,16 +233,18 @@ if page == "admin":
 # ----------------- PROJECTOR SCREEN -----------------
 elif page == "lobby":
     
-    st.markdown("""
-    <style>
-        /* Vertically centers the entire left column (Text + QR) relative to the tall image on the right! */
-        [data-testid="stAppViewContainer"] > .main > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
-            align-items: center !important; 
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    # [LEGACY CSS HACK COMMENTED OUT PENDING PERMISSION TO DELETE]
+    # st.markdown("""
+    # <style>
+    #     /* Vertically centers the entire left column (Text + QR) relative to the tall image on the right! */
+    #     [data-testid="stAppViewContainer"] > .main > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
+    #         align-items: center !important; 
+    #     }
+    # </style>
+    # """, unsafe_allow_html=True)
     
-    text_col, image_col = st.columns([1, 1.2], gap="large")
+    # Implemented native Streamlit vertical alignment (Streamlit >= 1.36.0)
+    text_col, image_col = st.columns([1, 1.2], gap="large", vertical_alignment="center")
     
     with text_col:
         # 🚨 LOBBY UI REMOVED, APP DEFAULTS STRAIGHT TO LIVE "STARTED" STATE 🚨
