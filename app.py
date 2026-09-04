@@ -152,7 +152,6 @@ if page == "admin":
     
     st.subheader("1. Game Controls")
     
-    # 🚨 LOBBY BUTTON COMMENTED OUT 🚨
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🚀 GAME OPEN (LIVE)", use_container_width=True):
@@ -233,22 +232,20 @@ if page == "admin":
 # ----------------- PROJECTOR SCREEN -----------------
 elif page == "lobby":
     
-    # [LEGACY CSS HACK COMMENTED OUT PENDING PERMISSION TO DELETE]
-    # st.markdown("""
-    # <style>
-    #     /* Vertically centers the entire left column (Text + QR) relative to the tall image on the right! */
-    #     [data-testid="stAppViewContainer"] > .main > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
-    #         align-items: center !important; 
-    #     }
-    # </style>
-    # """, unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+        /* Vertically centers the entire left column (Text + QR) relative to the tall image on the right! */
+        [data-testid="stAppViewContainer"] > .main > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
+            align-items: center !important; 
+        }
+    </style>
+    """, unsafe_allow_html=True)
     
-    # Implemented native Streamlit vertical alignment (Streamlit >= 1.36.0)
-    text_col, image_col = st.columns([1, 1.2], gap="large", vertical_alignment="center")
+    text_col, image_col = st.columns([1, 1.2], gap="large")
     
     with text_col:
         # 🚨 LOBBY UI REMOVED, APP DEFAULTS STRAIGHT TO LIVE "STARTED" STATE 🚨
-        if game_status in ["started", "lobby"]: # Catch-all just in case DB is still set to lobby
+        if game_status in ["started", "lobby"]: 
             st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! ⏳</h2>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.info("Scan the code below to play! Fastest correct answer wins.")
@@ -267,12 +264,13 @@ elif page == "lobby":
             
             html = "<h3>Reveal Status:</h3>"
             for i in range(1, 5):
+                mb = "12px" if i < 4 else "0px" # Nullifies invisible bottom padding on the final block
                 if str(i) in revealed_slots:
                     p_id = CORRECT_SEQUENCE[i-1]
                     hint_text = hints[p_id]
-                    html += f"<div style='display: flex; background-color: #f8f9fa; border-left: 6px solid #2e7d32; border-radius: 4px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden;'><div style='background-color: #2e7d32; color: white; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>{p_id}</div><div style='padding: 12px 15px; color: #333; font-size: 14px; display: flex; align-items: center; line-height: 1.4;'><i>\"{hint_text}\"</i></div></div>"
+                    html += f"<div style='display: flex; background-color: #f8f9fa; border-left: 6px solid #2e7d32; border-radius: 4px; margin-bottom: {mb}; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden;'><div style='background-color: #2e7d32; color: white; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>{p_id}</div><div style='padding: 12px 15px; color: #333; font-size: 14px; display: flex; align-items: center; line-height: 1.4;'><i>\"{hint_text}\"</i></div></div>"
                 else:
-                    html += f"<div style='display: flex; background-color: #fafafa; border-left: 6px solid #ccc; border-radius: 4px; margin-bottom: 12px; border: 1px dashed #e0e0e0; overflow: hidden;'><div style='background-color: #eee; color: #aaa; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>?</div><div style='padding: 12px 15px; color: #999; font-size: 14px; display: flex; align-items: center; font-style: italic;'>Slot {i} Locked</div></div>"
+                    html += f"<div style='display: flex; background-color: #fafafa; border-left: 6px solid #ccc; border-radius: 4px; margin-bottom: {mb}; border: 1px dashed #e0e0e0; overflow: hidden;'><div style='background-color: #eee; color: #aaa; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>?</div><div style='padding: 12px 15px; color: #999; font-size: 14px; display: flex; align-items: center; font-style: italic;'>Slot {i} Locked</div></div>"
             st.markdown(html, unsafe_allow_html=True)
             
         elif game_status == "winners":
@@ -319,10 +317,8 @@ elif page == "lobby":
 
         # 🚨 THE GHOST-PROOF QR CONTAINER 🚨
         qr_placeholder = st.empty()
-        
-        if game_status in ["lobby", "started"]: # Catch-all 
+        if game_status in ["lobby", "started"]: 
             with qr_placeholder.container():
-                st.write("") 
                 qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
                 with qr_c2:
                     qr_img = load_qr()
@@ -331,13 +327,8 @@ elif page == "lobby":
                     else:
                         st.info("⚠️ Admin: Upload qr.png")
         else:
-            # [Unverified Custom Workaround] Anti-Ghosting Override
-            # Forces React to overwrite the specific recycled DOM nodes rather than just clearing the parent.
-            with qr_placeholder.container():
-                st.write("")
-                qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1])
-                with qr_c2:
-                    st.empty() # Injects a null element to securely wipe the image tag
+            # DOM Node Override: Mathematically eradicates the React container rather than simply emptying it.
+            qr_placeholder.markdown("<span style='display:none;'></span>", unsafe_allow_html=True)
 
     with image_col:
         # Calls the cached PIL engine directly, stopping the polling flash
