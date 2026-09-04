@@ -17,6 +17,7 @@ page_param = q_params.get("page", "")
 if isinstance(page_param, list):
     page_param = page_param[0] if len(page_param) > 0 else ""
 
+# Note: "?page=lobby" is still used to route to the Projector display!
 if "lobby" in q_params or page_param.lower() == "lobby":
     st.session_state.app_role = "lobby"
 elif "admin" in q_params or page_param.lower() == "admin":
@@ -58,7 +59,7 @@ hints = {
     9: "On cloud nine. So shocked she kept asking when did he collect the ring, instead of saying yes."
 }
 
-# 🚨 THE RESTORED CACHING ENGINE (PREVENTS FLASHING) 🚨
+# 🚨 THE CACHING ENGINE (PREVENTS FLASHING) 🚨
 @st.cache_resource
 def load_template():
     return Image.open("images_for_app/Film Strip Empty_V2.jpg").convert("RGBA")
@@ -150,15 +151,14 @@ if page == "admin":
     st.title("Admin Control 👑")
     
     st.subheader("1. Game Controls")
-    col1, col2, col3 = st.columns(3)
+    
+    # 🚨 LOBBY BUTTON COMMENTED OUT 🚨
+    col1, col2 = st.columns(2)
     with col1:
-        if st.button("Lobby (QR)"):
-            supabase.table("game_state").update({"status": "lobby"}).eq("id", 1).execute()
-    with col2:
-        if st.button("🚀 START GAME"):
+        if st.button("🚀 GAME OPEN (LIVE)", use_container_width=True):
             supabase.table("game_state").update({"status": "started"}).eq("id", 1).execute()
-    with col3:
-        if st.button("🛑 STOP GAME"):
+    with col2:
+        if st.button("🛑 STOP GAME (CLOSED)", type="primary", use_container_width=True):
             supabase.table("game_state").update({"status": "closed"}).eq("id", 1).execute()
 
     st.divider()
@@ -245,22 +245,19 @@ elif page == "lobby":
     text_col, image_col = st.columns([1, 1.2], gap="large")
     
     with text_col:
-        if game_status == "lobby":
-            st.markdown("<h2 style='font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! 📸</h2>", unsafe_allow_html=True)
-            st.markdown("<h3 style='font-size: 20px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Scan the QR code to join the waiting room!</h3>", unsafe_allow_html=True)
-            
-        elif game_status == "started":
-            st.markdown("<h2 style='font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! ⏳</h2>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='font-size: 20px; color: #444; margin-top: 0px; margin-bottom: 7px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
+        # 🚨 LOBBY UI REMOVED, APP DEFAULTS STRAIGHT TO LIVE "STARTED" STATE 🚨
+        if game_status in ["started", "lobby"]: # Catch-all just in case DB is still set to lobby
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>Wesley & Angel’s Photo Booth Challenge! ⏳</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.info("Scan the code below to play! Fastest correct answer wins.")
             
         elif game_status == "closed":
-            st.markdown("<h2 style='font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 0px;'>🛑 TIME'S UP!</h2>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='font-size: 20px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions Locked In: {len(all_submissions)}</h3>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>🛑 TIME'S UP!</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions Locked In: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.markdown("<p style='font-size: 18px; color: #666;'>Eyes on the screen... let's reveal the answers!</p>", unsafe_allow_html=True)
             
         elif game_status.startswith("reveal|"):
-            st.markdown("<h2 style='font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 15px;'>The Master Code...</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>The Master Code...</h2>", unsafe_allow_html=True)
             revealed_slots = []
             parts = game_status.split("|")
             if len(parts) > 1 and parts[1] != "":
@@ -277,7 +274,7 @@ elif page == "lobby":
             st.markdown(html, unsafe_allow_html=True)
             
         elif game_status == "winners":
-            st.markdown("<h2 style='font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 15px;'>🎉 The Winners! 🎉</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🎉 The Winners! 🎉</h2>", unsafe_allow_html=True)
             if len(winners) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No one got the exact sequence! Let's check the Runner-Up board!</div>", unsafe_allow_html=True)
             else:
@@ -291,7 +288,7 @@ elif page == "lobby":
                 st.markdown(html, unsafe_allow_html=True)
                 
         elif game_status == "champion":
-            st.markdown("<h2 style='font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 15px;'>⚡ THE CHAMPION ⚡</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>⚡ THE CHAMPION ⚡</h2>", unsafe_allow_html=True)
             if len(winners) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>Mission Failed: No one decoded the perfect sequence!</div>", unsafe_allow_html=True)
             else:
@@ -302,7 +299,7 @@ elif page == "lobby":
                 st.markdown(html, unsafe_allow_html=True)
                 
         elif game_status == "runner_up":
-            st.markdown("<h2 style='font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 15px;'>🥈 The Runner-Up!</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🥈 The Runner-Up!</h2>", unsafe_allow_html=True)
             if len(ranked_submissions) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No submissions found!</div>", unsafe_allow_html=True)
             elif ranked_submissions[0]["score"] == 0:
@@ -320,9 +317,9 @@ elif page == "lobby":
 
         # 🚨 THE GHOST-PROOF QR CONTAINER 🚨
         qr_placeholder = st.empty()
-        if game_status in ["lobby", "started"]:
+        if game_status in ["lobby", "started"]: # Catch-all 
             with qr_placeholder.container():
-                st.write("") # Natural gap
+                st.write("") 
                 qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
                 with qr_c2:
                     qr_img = load_qr()
@@ -331,10 +328,10 @@ elif page == "lobby":
                     else:
                         st.info("⚠️ Admin: Upload qr.png")
         else:
-            qr_placeholder.empty() # Completely eradicates the element from the DOM so it cannot ghost
+            qr_placeholder.empty()
 
     with image_col:
-        # 🚨 RESTORED: Calling the cached PIL engine directly stops the polling flash
+        # Calls the cached PIL engine directly, stopping the polling flash
         if game_status in ["lobby", "started", "closed"]:
             st.image(load_template(), use_container_width=True)
             
@@ -367,7 +364,6 @@ else:
         }
         [data-testid="stVerticalBlock"]:has(.tutorial-marker) [data-testid="stHorizontalBlock"]::-webkit-scrollbar { display: none; }
         
-        /* Sets the width to 75vw so the edge of the next image hints at swiping */
         [data-testid="stVerticalBlock"]:has(.tutorial-marker) [data-testid="column"] {
             flex: 0 0 75vw !important;
             width: 75vw !important;
@@ -422,13 +418,8 @@ else:
     </style>
     """, unsafe_allow_html=True)
 
-    if game_status == "lobby":
-        st.title("Wesley & Angel's Photo Booth Challenge 📱")
-        st.info("The game hasn't started yet! Keep an eye on the projector.")
-        time.sleep(3)
-        st.rerun()
-        
-    elif game_status == "started":
+    # 🚨 LOBBY LOGIC MERGED WITH STARTED 🚨
+    if game_status in ["started", "lobby"]:
         if st.session_state.has_submitted:
             st.title("Wesley & Angel's Photo Booth Challenge 📱")
             st.success("Answers locked in! Thanks for playing. Enjoy your dinner and stay tuned for the grand reveal later tonight! 🥂")
