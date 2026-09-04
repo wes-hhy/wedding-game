@@ -319,6 +319,7 @@ elif page == "lobby":
 
         # 🚨 THE GHOST-PROOF QR CONTAINER 🚨
         qr_placeholder = st.empty()
+        
         if game_status in ["lobby", "started"]: # Catch-all 
             with qr_placeholder.container():
                 st.write("") 
@@ -330,7 +331,13 @@ elif page == "lobby":
                     else:
                         st.info("⚠️ Admin: Upload qr.png")
         else:
-            qr_placeholder.empty()
+            # [Unverified Custom Workaround] Anti-Ghosting Override
+            # Forces React to overwrite the specific recycled DOM nodes rather than just clearing the parent.
+            with qr_placeholder.container():
+                st.write("")
+                qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1])
+                with qr_c2:
+                    st.empty() # Injects a null element to securely wipe the image tag
 
     with image_col:
         # Calls the cached PIL engine directly, stopping the polling flash
