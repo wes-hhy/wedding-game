@@ -3,6 +3,7 @@ from supabase import create_client, Client
 from PIL import Image, ImageOps
 import time
 import os
+import random
 from datetime import datetime
 
 st.set_page_config(page_title="Wedding Game", layout="centered", initial_sidebar_state="collapsed")
@@ -457,7 +458,14 @@ else:
                 with img_col1:
                     st.image(load_template(), use_container_width=True, caption="1. The Empty Strip (Swipe 👉)")
                 with img_col2:
-                    dummy_strip = generate_film_strip([0, 7, 2, 8])
+                    # Generate a random dummy sequence
+                    dummy_sequence = random.sample(range(10), 4)
+                    
+                    # Failsafe: Ensure the RNG never accidentally displays the actual winning code
+                    if dummy_sequence == CORRECT_SEQUENCE:
+                        dummy_sequence = [7, 0, 2, 8] 
+                        
+                    dummy_strip = generate_film_strip(dummy_sequence)
                     st.image(dummy_strip, use_container_width=True, caption="2. The Goal")
 
             st.info("""
@@ -466,7 +474,7 @@ else:
             2. **Build the Strip:** Swipe and select your 4 photos in the perfect sequence.
             3. **Fair Play:** Strictly ONE entry per person. We are watching! 👀
             """)
-            st.warning("⏱️ **Fastest time wins!** Your timer starts the exact millisecond you click start. Do not close the app or you will lose your progress.")
+            st.warning("⏱️ **Accuracy first, speed second!** The winner is the fastest guest to submit the *perfect sequence*. Your timer starts the exact millisecond you click start. Do not close the app or you will lose your progress.")
             
             st.divider()
             st.write("### Register to Play")
