@@ -256,7 +256,8 @@ elif page == "lobby":
             st.markdown("<p style='font-size: 18px; color: #666;'>Eyes on the screen... let's reveal the answers!</p>", unsafe_allow_html=True)
             
         elif game_status.startswith("reveal|"):
-            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>The Master Code...</h2>", unsafe_allow_html=True)
+            # Nullified margin-top prevents default browser styling from pushing the text block down
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-top: 0px; margin-bottom: 15px;'>The Master Code...</h2>", unsafe_allow_html=True)
             revealed_slots = []
             parts = game_status.split("|")
             if len(parts) > 1 and parts[1] != "":
@@ -272,6 +273,7 @@ elif page == "lobby":
                 else:
                     html += f"<div style='display: flex; background-color: #fafafa; border-left: 6px solid #ccc; border-radius: 4px; margin-bottom: {mb}; border: 1px dashed #e0e0e0; overflow: hidden;'><div style='background-color: #eee; color: #aaa; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>?</div><div style='padding: 12px 15px; color: #999; font-size: 14px; display: flex; align-items: center; font-style: italic;'>Slot {i} Locked</div></div>"
             st.markdown(html, unsafe_allow_html=True)
+            st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True) # Optical alignment spacer
             
         elif game_status == "winners":
             st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🎉 The Winners! 🎉</h2>", unsafe_allow_html=True)
@@ -327,8 +329,11 @@ elif page == "lobby":
                     else:
                         st.info("⚠️ Admin: Upload qr.png")
         else:
-            # DOM Node Override: Mathematically eradicates the React container rather than simply emptying it.
-            qr_placeholder.markdown("<span style='display:none;'></span>", unsafe_allow_html=True)
+            # DOM Node Overwrite: Mirroring the exact structure guarantees React correctly unmounts the nested image tag.
+            with qr_placeholder.container():
+                qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
+                with qr_c2:
+                    st.empty()
 
     with image_col:
         # Calls the cached PIL engine directly, stopping the polling flash
