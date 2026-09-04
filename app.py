@@ -257,14 +257,18 @@ elif page == "lobby":
             st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.info("Scan the code below to play! Fastest correct answer wins.")
             
-            # 🚨 FIX: QR physically locked inside this specific UI state
-            st.write("") 
+            # --- THE CENTERED CRISP QR CODE (GHOST-PROOF DOM) ---
+            st.write("") # Natural gap
             qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
             with qr_c2:
-                if os.path.exists("images_for_app/qr.png"):
-                    st.image("images_for_app/qr.png", use_container_width=True)
+                if game_status in ["lobby", "started"]:
+                    if os.path.exists("images_for_app/qr.png"):
+                        st.image("images_for_app/qr.png", use_container_width=True)
+                    else:
+                        st.info("⚠️ Admin: Upload qr.png")
                 else:
-                    st.info("⚠️ Admin: Upload qr.png")
+                    # Forces Streamlit's React engine to swap the image out for blank text, instantly killing the ghost
+                    st.write("")
             
         elif game_status == "closed":
             st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>🛑 TIME'S UP!</h2>", unsafe_allow_html=True)
