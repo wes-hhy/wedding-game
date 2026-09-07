@@ -247,7 +247,6 @@ elif page == "lobby":
     with text_col:
         # 🚨 LOBBY UI REMOVED, APP DEFAULTS STRAIGHT TO LIVE "STARTED" STATE 🚨
         if game_status in ["started", "lobby"]: 
-            # Replaced Photo Booth Challenge with Film Strip Challenge
             st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>Wesley & Angel’s Film Strip Challenge! 📸</h2>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
             st.info("Scan the code below to play! Fastest correct answer wins.")
@@ -428,7 +427,7 @@ else:
     # 🚨 LOBBY LOGIC MERGED WITH STARTED 🚨
     if game_status in ["started", "lobby"]:
         if st.session_state.has_submitted:
-            st.title("Wesley & Angel's Film Strip Challenge 📱")
+            st.title("The WAW Film Strip Challenge 📱")
             st.success("Answers locked in! Thanks for playing. Enjoy your dinner and stay tuned for the grand reveal later tonight! 🥂")
             
             st.markdown("<h3 style='text-align: center; color: #333; font-family: serif; margin-bottom: 10px;'>Submission Locked 🔐</h3>", unsafe_allow_html=True)
@@ -450,8 +449,8 @@ else:
             st.info("📸 Take a screenshot of this page! **Make sure your name and time are clearly visible for prize verification.**")
         
         elif not st.session_state.game_started:
-            st.title("Welcome to Wesley & Angel's Film Strip Challenge! 📸")
-            st.write("We have laid out 10 of our favorite memories. The master code is hidden within them. Can you figure out the exact sequence and unlock the true WAW factor?")
+            st.title("The WAW (Wesley & Angel Wedding) Film Strip Challenge! 📸")
+            st.write("We have laid out 10 of our favorite memories. Can you unlock the true WAW factor?")
             
             with st.container():
                 st.markdown('<div class="tutorial-marker"></div>', unsafe_allow_html=True)
@@ -470,8 +469,10 @@ else:
                     st.image(dummy_strip, use_container_width=True, caption="2. The Goal (example)")
 
             st.info("""
+            *Every picture holds a memory—and counts for something more. Can you figure out the perfect sequence?*
+            
             **How to Play:**
-            1. **Build the Strip:** Swipe through the gallery below and select 4 memories in the perfect sequence.
+            1. **Build the Strip:** Swipe through the gallery below and select 4 photos to lock in.
             2. **Fair Play:** Strictly ONE entry per person. We are watching! 👀
             """)
             st.warning("⏱️ **Accuracy first, speed second!** The winner is the fastest guest to submit the *perfect sequence*. Your timer starts the exact millisecond you click start. Do not close the app or you will lose your progress.")
@@ -502,7 +503,7 @@ else:
                         st.rerun()
 
         else:
-            st.title("Wesley & Angel's Film Strip Challenge 📱")
+            st.title("The WAW Film Strip Challenge 📱")
             st.info("💡 **Hint:** *Every picture tells a story, and every story counts. Take a close look at the empty film strip... can you figure out which 4 memories unlock the ultimate WAW factor?*")
             
             st.write("### The Story Gallery")
