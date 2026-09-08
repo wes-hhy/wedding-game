@@ -140,7 +140,7 @@ all_submissions = subs_response.data
 for sub in all_submissions:
     sub["score"] = get_score(sub)
 
-# Winners (4/4) sorted by speed
+# Winners (4/4) sorted by speed (index 0 is fastest)
 winners = [s for s in all_submissions if s["score"] == 4]
 winners = sorted(winners, key=lambda x: float(x.get("time_taken") or 9999.0))
 
@@ -189,14 +189,40 @@ if page == "admin":
 
     st.divider()
     
-    st.subheader("3. Final Results")
+    # 🚨 THE NEW PODIUM ENGINE CONTROLS 🚨
+    st.subheader("3. Final Results Podium")
     w_col1, w_col2 = st.columns(2)
     with w_col1:
-        if st.button("🏆 Show Top 3 Winners", use_container_width=True):
-            supabase.table("game_state").update({"status": "winners"}).eq("id", 1).execute()
+        if st.button("🏆 Start Winners Podium", use_container_width=True):
+            supabase.table("game_state").update({"status": "winners|1"}).eq("id", 1).execute()
     with w_col2:
-        if st.button("🥈 Show Top 3 Runner-Ups", use_container_width=True):
-            supabase.table("game_state").update({"status": "runner_up"}).eq("id", 1).execute()
+        if st.button("🥈 Start Runner-Up Podium", use_container_width=True):
+            supabase.table("game_state").update({"status": "runner_up|1"}).eq("id", 1).execute()
+
+    # If a podium is active, show the step-by-step reveal controls
+    if game_status.startswith("winners|") or game_status.startswith("runner_up|"):
+        st.write("---")
+        st.write("**Podium Progression:**")
+        podium_type, step_str = game_status.split("|")
+        step = int(step_str)
+        
+        p_col1, p_col2, p_col3 = st.columns(3)
+        with p_col1:
+            st.success("🥉 3rd Place Revealed")
+        with p_col2:
+            if step >= 2:
+                st.success("🥈 2nd Place Revealed")
+            else:
+                if st.button("Reveal 🥈 2nd Place", type="primary", use_container_width=True):
+                    supabase.table("game_state").update({"status": f"{podium_type}|2"}).eq("id", 1).execute()
+                    st.rerun()
+        with p_col3:
+            if step >= 3:
+                st.success("🥇 1st Place Revealed")
+            else:
+                if st.button("Reveal 🥇 1st Place!", type="primary", disabled=(step < 2), use_container_width=True):
+                    supabase.table("game_state").update({"status": f"{podium_type}|3"}).eq("id", 1).execute()
+                    st.rerun()
 
     st.divider()
     
@@ -273,36 +299,58 @@ elif page == "lobby":
             st.markdown(html, unsafe_allow_html=True)
             st.markdown("<div style='height: 140px;'></div>", unsafe_allow_html=True) # Amplified optical alignment spacer pushes content UP
             
-        elif game_status == "winners":
-            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🎉 Top 3 Winners! 🎉</h2>", unsafe_allow_html=True)
-            if len(winners) == 0:
-                st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No one got the exact sequence! Let's check the Runner-Up board!</div>", unsafe_allow_html=True)
+        elif game_status.startswith("winners|") or game_status.startswith("runner_up|"):
+            podium_type, step_str = game_status.split("|")
+            step = int(step_str)
+            
+            if podium_type == "winners":
+                st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🎉 Top 3 Winners! 🎉</h2>", unsafe_allow_html=True)
+                target_list = winners
+                fallback_msg = "No one got the exact sequence! Let's check the Runner-Up board!"
             else:
-                html = "<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>The fastest perfect sequences:</div>"
-                medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
-                for i, w in enumerate(winners[:3]):
-                    time_val = float(w.get('time_taken') or 0.0)
-                    display_name = f"Table {w.get('table_number', '?')} - {w['guest_name']}"
-                    html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>{medals[i]}: {display_name} ({time_val:.2f}s)</div>"
-                st.markdown(html, unsafe_allow_html=True)
-                
-        elif game_status == "runner_up":
-            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🥈 Top 3 Runner-Ups!</h2>", unsafe_allow_html=True)
-            if len(ranked_submissions) == 0:
-                st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No submissions found!</div>", unsafe_allow_html=True)
-            elif ranked_submissions[0]["score"] == 0:
-                st.markdown("<div style='padding:15px; background-color:#fff3e0; color:#e65100; border-radius:8px; font-family:sans-serif;'>Wow. Not a single person got even one photo in the right slot!</div>", unsafe_allow_html=True)
+                st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🥈 Top Runner-Ups!</h2>", unsafe_allow_html=True)
+                if len(ranked_submissions) > 0:
+                    best_score = ranked_submissions[0]["score"]
+                    target_list = [s for s in ranked_submissions if s["score"] == best_score]
+                else:
+                    best_score = 0
+                    target_list = []
+                fallback_msg = "No submissions found!"
+
+            if len(target_list) == 0 or (podium_type == "runner_up" and best_score == 0):
+                st.markdown(f"<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>{fallback_msg}</div>", unsafe_allow_html=True)
             else:
-                best_score = ranked_submissions[0]["score"]
-                html = f"<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>Nobody got all 4, but these guests were the closest (<b>{best_score}/4 correct</b>):</div>"
+                if podium_type == "winners":
+                    st.markdown("<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>The fastest perfect sequences:</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>Nobody got all 4, but these guests were the closest (<b>{best_score}/4 correct</b>):</div>", unsafe_allow_html=True)
                 
+                # Pad the list so we always have 3 slots to check against
+                podium_guests = target_list[:3]
+                while len(podium_guests) < 3:
+                    podium_guests.append(None)
+                
+                # Styling for 1st (index 0), 2nd (index 1), 3rd (index 2)
                 medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
-                top_runners = [s for s in ranked_submissions if s["score"] == best_score]
-                for i, w in enumerate(top_runners[:3]):
-                    time_val = float(w.get('time_taken') or 0.0)
-                    display_name = f"Table {w.get('table_number', '?')} - {w['guest_name']}"
-                    html += f"<div style='padding:12px; background-color:#e3f2fd; color:#1565c0; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>{medals[i]}: {display_name} ({time_val:.2f}s)</div>"
-                st.markdown(html, unsafe_allow_html=True)
+                bg_colors = ["#fff3e0", "#e3f2fd", "#e8f5e9"] # orange, blue, green
+                text_colors = ["#e65100", "#1565c0", "#2e7d32"]
+                
+                # Render in suspense order: 3rd, then 2nd, then 1st
+                display_indices = []
+                if step >= 1: display_indices.append(2) # Show 3rd
+                if step >= 2: display_indices.append(1) # Show 2nd
+                if step >= 3: display_indices.append(0) # Show 1st
+                
+                for idx in display_indices:
+                    guest = podium_guests[idx]
+                    if guest:
+                        time_val = float(guest.get('time_taken') or 0.0)
+                        display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
+                        html = f"<div style='padding:15px; background-color:{bg_colors[idx]}; color:{text_colors[idx]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[idx]}40;'>{medals[idx]}: {display_name} ({time_val:.2f}s)</div>"
+                        st.markdown(html, unsafe_allow_html=True)
+                    else:
+                        html = f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[idx]}: No one qualified!</div>"
+                        st.markdown(html, unsafe_allow_html=True)
 
         # 🚨 THE PERMANENT GHOST-PROOF QR COLUMNS 🚨
         # By pinning the columns outside the IF statement, React never deletes the DOM grid structure.
@@ -315,7 +363,10 @@ elif page == "lobby":
                 else:
                     st.info("⚠️ Admin: Upload qr.png")
             else:
-                st.write("") # Instantly blanks the image without collapsing the columns
+                # 🚨 THE TRANSPARENT PIXEL FIX 🚨
+                # Streamlit's DOM retains <img> tags unless forcefully overwritten with another image.
+                # Supplying a 1x1 transparent pixel mathematically guarantees the QR code is eradicated.
+                st.image(Image.new('RGBA', (1, 1), (0, 0, 0, 0)), use_container_width=True)
 
     with image_col:
         # Calls the cached PIL engine directly, stopping the polling flash
@@ -327,7 +378,7 @@ elif page == "lobby":
             revealed_str = parts[1] if len(parts) > 1 else ""
             st.image(get_reveal_strip(revealed_str), use_container_width=True)
             
-        elif game_status in ["winners", "runner_up"]:
+        elif game_status.startswith("winners|") or game_status.startswith("runner_up|"):
             st.image(get_reveal_strip("1,2,3,4"), use_container_width=True)
 
     time.sleep(3)
