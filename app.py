@@ -275,30 +275,71 @@ if page == "admin":
 
 # ----------------- PROJECTOR SCREEN -----------------
 elif page == "lobby":
-    
-    # Check if a state change occurred for audio/animation triggers
-    state_just_changed = False
-    if game_status != st.session_state.last_projector_state:
-        state_just_changed = True
-        st.session_state.last_projector_state = game_status
 
-    audio_html_tag = ""
+    # --- ADVANCED AV DELAY ENGINE ---
+    # To sync the drumroll perfectly before the visual appears, we decouple 
+    # the 'game_status' (DB state) from 'display_status' (Projector Visual State)
+    if "display_status" not in st.session_state:
+        st.session_state.display_status = game_status
+    if "pending_audio" not in st.session_state:
+        st.session_state.pending_audio = None
+    if "pending_balloons" not in st.session_state:
+        st.session_state.pending_balloons = False
+
+    audio_to_play = None
     trigger_balloons = False
 
-    if state_just_changed:
+    # Check if a state change occurred from the database
+    if game_status != st.session_state.last_projector_state:
+        st.session_state.last_projector_state = game_status
+        
         if game_status.startswith("reveal|"):
             parts = game_status.split("|")
             if len(parts) > 1 and parts[1] != "":
-                audio_html_tag = get_audio_html("drumroll.mp3")
+                # Answer Revealed: Play drumroll NOW, but leave display_status on the OLD state to delay the visual
+                audio_to_play = "drumroll.mp3"
+            else:
+                # Just entered Reveal Mode (0 slots), update visual immediately
+                st.session_state.display_status = game_status
+
         elif game_status.startswith("winners|") or game_status.startswith("runner_up|"):
-            podium_type, step_str = game_status.split("|")
-            if int(step_str) > 0:
-                audio_html_tag = get_audio_html("cheer.mp3")
+            step = int(game_status.split("|")[1])
+            if step == 0:
+                st.session_state.display_status = game_status
+            elif step == 1:
+                # 3rd Place: No audio, balloons, immediate visual
+                st.session_state.display_status = game_status
                 trigger_balloons = True
+            elif step == 2:
+                # 2nd Place: Cheer, balloons, immediate visual
+                st.session_state.display_status = game_status
+                audio_to_play = "cheer.mp3"
+                trigger_balloons = True
+            elif step == 3:
+                # 1st Place: Drumroll NOW, delay visual for 1 cycle. Queue cheer and balloons for next cycle.
+                audio_to_play = "drumroll.mp3"
+                st.session_state.pending_audio = "cheer.mp3"
+                st.session_state.pending_balloons = True
+        else:
+            # Started, Closed, etc. update immediately
+            st.session_state.display_status = game_status
+
+    else:
+        # NO database change. BUT, check if our projector display is lagging behind (The Delay Catch-up)
+        if st.session_state.display_status != game_status:
+            st.session_state.display_status = game_status
+            
+            # Fire any effects that were queued while the drumroll was playing (e.g. 1st Place cheer)
+            if st.session_state.pending_audio:
+                audio_to_play = st.session_state.pending_audio
+                st.session_state.pending_audio = None
+            if st.session_state.pending_balloons:
+                trigger_balloons = True
+                st.session_state.pending_balloons = False
 
     # 🚨 THE DOM SHIFT FIX 🚨
-    # Render audio tag immediately in a hidden slot at the top.
-    # We ALWAYS render exactly one markdown element here so the React DOM keys never shift!
+    # Render audio tag immediately in a hidden slot at the absolute top of the DOM.
+    audio_html_tag = get_audio_html(audio_to_play) if audio_to_play else ""
     if audio_html_tag:
         st.markdown(audio_html_tag, unsafe_allow_html=True)
     else:
@@ -313,136 +354,142 @@ elif page == "lobby":
     </style>
     """, unsafe_allow_html=True)
     
+    # We now strictly render the frontend based on the d_status variable
+    d_status = st.session_state.display_status
+    
     text_col, image_col = st.columns([1, 1.2], gap="large")
     
     with text_col:
-        if game_status in ["started", "lobby"]: 
-            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>Wesley & Angel’s Film Strip Challenge! 📸</h2>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
-            st.info("Scan the code below to play! Fastest correct answer wins.")
+        # 🚨 THE DOM WIPE CONTAINER (KILLS ALL GHOSTS) 🚨
+        text_master_container = st.empty()
+        with text_master_container.container():
             
-        elif game_status == "closed":
-            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>🛑 TIME'S UP!</h2>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions Locked In: {len(all_submissions)}</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='font-size: 18px; color: #666;'>Eyes on the screen... let's reveal the answers!</p>", unsafe_allow_html=True)
-            
-        elif game_status.startswith("reveal|"):
-            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-top: -20px; padding-top: 0px; margin-bottom: 15px;'>The Master Code...</h2>", unsafe_allow_html=True)
-            revealed_slots = []
-            parts = game_status.split("|")
-            if len(parts) > 1 and parts[1] != "":
-                revealed_slots = parts[1].split(",")
-            
-            html = "<h3>Reveal Status:</h3>"
-            for i in range(1, 5):
-                mb = "12px" if i < 4 else "0px" 
-                if str(i) in revealed_slots:
-                    p_id = CORRECT_SEQUENCE[i-1]
-                    hint_text = hints[p_id]
-                    html += f"<div style='display: flex; background-color: #f8f9fa; border-left: 6px solid #2e7d32; border-radius: 4px; margin-bottom: {mb}; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden;'><div style='background-color: #2e7d32; color: white; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>{p_id}</div><div style='padding: 12px 15px; color: #333; font-size: 14px; display: flex; align-items: center; line-height: 1.4;'><i>\"{hint_text}\"</i></div></div>"
-                else:
-                    html += f"<div style='display: flex; background-color: #fafafa; border-left: 6px solid #ccc; border-radius: 4px; margin-bottom: {mb}; border: 1px dashed #e0e0e0; overflow: hidden;'><div style='background-color: #eee; color: #aaa; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>?</div><div style='padding: 12px 15px; color: #999; font-size: 14px; display: flex; align-items: center; font-style: italic;'>Slot {i} Locked</div></div>"
-            st.markdown(html, unsafe_allow_html=True)
-            st.markdown("<div style='height: 140px;'></div>", unsafe_allow_html=True) 
-            
-        elif game_status.startswith("winners|") or game_status.startswith("runner_up|"):
-            podium_type, step_str = game_status.split("|")
-            step = int(step_str)
-            
-            if podium_type == "winners":
-                st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🎉 Top 3 Winners! 🎉</h2>", unsafe_allow_html=True)
-                target_list = winners
-                fallback_msg = "No one got the exact sequence! Let's check the Runner-Up board!"
-            else:
-                st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🥈 Top Runner-Ups!</h2>", unsafe_allow_html=True)
-                if len(ranked_submissions) > 0:
-                    best_score = ranked_submissions[0]["score"]
-                    target_list = [s for s in ranked_submissions if s["score"] == best_score]
-                else:
-                    best_score = 0
-                    target_list = []
-                fallback_msg = "No submissions found!"
-
-            if len(target_list) == 0 or (podium_type == "runner_up" and best_score == 0):
-                st.markdown(f"<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>{fallback_msg}</div>", unsafe_allow_html=True)
-            else:
+            if d_status in ["started", "lobby"]: 
+                st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>Wesley & Angel’s Film Strip Challenge! 📸</h2>", unsafe_allow_html=True)
+                st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions: {len(all_submissions)}</h3>", unsafe_allow_html=True)
+                st.info("Scan the code below to play! Fastest correct answer wins.")
+                
+            elif d_status == "closed":
+                st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 0px;'>🛑 TIME'S UP!</h2>", unsafe_allow_html=True)
+                st.markdown(f"<h3 style='font-size: 22px; color: #444; margin-top: 10px; margin-bottom: 15px;'>Total Submissions Locked In: {len(all_submissions)}</h3>", unsafe_allow_html=True)
+                st.markdown("<p style='font-size: 18px; color: #666;'>Eyes on the screen... let's reveal the answers!</p>", unsafe_allow_html=True)
+                
+            elif d_status.startswith("reveal|"):
+                st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-top: -20px; padding-top: 0px; margin-bottom: 15px;'>The Master Code...</h2>", unsafe_allow_html=True)
+                revealed_slots = []
+                parts = d_status.split("|")
+                if len(parts) > 1 and parts[1] != "":
+                    revealed_slots = parts[1].split(",")
+                
+                html = "<h3>Reveal Status:</h3>"
+                for i in range(1, 5):
+                    mb = "12px" if i < 4 else "0px" 
+                    if str(i) in revealed_slots:
+                        p_id = CORRECT_SEQUENCE[i-1]
+                        hint_text = hints[p_id]
+                        html += f"<div style='display: flex; background-color: #f8f9fa; border-left: 6px solid #2e7d32; border-radius: 4px; margin-bottom: {mb}; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden;'><div style='background-color: #2e7d32; color: white; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>{p_id}</div><div style='padding: 12px 15px; color: #333; font-size: 14px; display: flex; align-items: center; line-height: 1.4;'><i>\"{hint_text}\"</i></div></div>"
+                    else:
+                        html += f"<div style='display: flex; background-color: #fafafa; border-left: 6px solid #ccc; border-radius: 4px; margin-bottom: {mb}; border: 1px dashed #e0e0e0; overflow: hidden;'><div style='background-color: #eee; color: #aaa; font-size: 28px; font-weight: 900; padding: 15px; width: 60px; text-align: center; display: flex; align-items: center; justify-content: center;'>?</div><div style='padding: 12px 15px; color: #999; font-size: 14px; display: flex; align-items: center; font-style: italic;'>Slot {i} Locked</div></div>"
+                st.markdown(html, unsafe_allow_html=True)
+                st.markdown("<div style='height: 140px;'></div>", unsafe_allow_html=True) 
+                
+            elif d_status.startswith("winners|") or d_status.startswith("runner_up|"):
+                podium_type, step_str = d_status.split("|")
+                step = int(step_str)
+                
                 if podium_type == "winners":
-                    st.markdown("<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>The fastest perfect sequences:</div>", unsafe_allow_html=True)
+                    st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🎉 Top 3 Winners! 🎉</h2>", unsafe_allow_html=True)
+                    target_list = winners
+                    fallback_msg = "No one got the exact sequence! Let's check the Runner-Up board!"
                 else:
-                    st.markdown(f"<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>Nobody got all 4, but these guests were the closest (<b>{best_score}/4 correct</b>):</div>", unsafe_allow_html=True)
-                
-                # Pad the list so we always have 3 slots to check against
-                podium_guests = target_list[:3]
-                while len(podium_guests) < 3:
-                    podium_guests.append(None)
-                
-                # Styling arrays 
-                medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
-                bg_colors = ["#fff3e0", "#e3f2fd", "#e8f5e9"] # orange, blue, green
-                text_colors = ["#e65100", "#1565c0", "#2e7d32"]
-                
-                # --- REVEAL LOGIC RE-ORDERED: 1st (Top), 2nd (Middle), 3rd (Bottom) ---
-                
-                # 1st Place Logic (Top Slot)
-                if step >= 3:
-                    guest = podium_guests[0]
-                    if guest:
-                        time_val = float(guest.get('time_taken') or 0.0)
-                        display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
-                        st.markdown(f"<div style='padding:15px; background-color:{bg_colors[0]}; color:{text_colors[0]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[0]}40;'>{medals[0]}: {display_name} ({time_val:.2f}s)</div>", unsafe_allow_html=True)
+                    st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🥈 Top Runner-Ups!</h2>", unsafe_allow_html=True)
+                    if len(ranked_submissions) > 0:
+                        best_score = ranked_submissions[0]["score"]
+                        target_list = [s for s in ranked_submissions if s["score"] == best_score]
                     else:
-                        st.markdown(f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[0]}: No one qualified!</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div style='padding:15px; background-color:#fafafa; color:#999; border-radius:8px; margin-bottom:10px; font-style:italic; font-family:sans-serif; border: 1px dashed #e0e0e0; display:flex; justify-content:center; align-items:center;'>🔒 {medals[0]} Locked</div>", unsafe_allow_html=True)
+                        best_score = 0
+                        target_list = []
+                    fallback_msg = "No submissions found!"
 
-                # 2nd Place Logic (Middle Slot)
-                if step >= 2:
-                    guest = podium_guests[1]
-                    if guest:
-                        time_val = float(guest.get('time_taken') or 0.0)
-                        display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
-                        st.markdown(f"<div style='padding:15px; background-color:{bg_colors[1]}; color:{text_colors[1]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[1]}40;'>{medals[1]}: {display_name} ({time_val:.2f}s)</div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[1]}: No one qualified!</div>", unsafe_allow_html=True)
+                if len(target_list) == 0 or (podium_type == "runner_up" and best_score == 0):
+                    st.markdown(f"<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>{fallback_msg}</div>", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<div style='padding:15px; background-color:#fafafa; color:#999; border-radius:8px; margin-bottom:10px; font-style:italic; font-family:sans-serif; border: 1px dashed #e0e0e0; display:flex; justify-content:center; align-items:center;'>🔒 {medals[1]} Locked</div>", unsafe_allow_html=True)
+                    if podium_type == "winners":
+                        st.markdown("<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>The fastest perfect sequences:</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>Nobody got all 4, but these guests were the closest (<b>{best_score}/4 correct</b>):</div>", unsafe_allow_html=True)
+                    
+                    # Pad the list so we always have 3 slots to check against
+                    podium_guests = target_list[:3]
+                    while len(podium_guests) < 3:
+                        podium_guests.append(None)
+                    
+                    # Styling arrays 
+                    medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
+                    bg_colors = ["#fff3e0", "#e3f2fd", "#e8f5e9"] # orange, blue, green
+                    text_colors = ["#e65100", "#1565c0", "#2e7d32"]
+                    
+                    # --- REVEAL LOGIC RE-ORDERED: 1st (Top), 2nd (Middle), 3rd (Bottom) ---
+                    
+                    # 1st Place Logic (Top Slot)
+                    if step >= 3:
+                        guest = podium_guests[0]
+                        if guest:
+                            time_val = float(guest.get('time_taken') or 0.0)
+                            display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
+                            st.markdown(f"<div style='padding:15px; background-color:{bg_colors[0]}; color:{text_colors[0]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[0]}40;'>{medals[0]}: {display_name} ({time_val:.2f}s)</div>", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[0]}: No one qualified!</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='padding:15px; background-color:#fafafa; color:#999; border-radius:8px; margin-bottom:10px; font-style:italic; font-family:sans-serif; border: 1px dashed #e0e0e0; display:flex; justify-content:center; align-items:center;'>🔒 {medals[0]} Locked</div>", unsafe_allow_html=True)
 
-                # 3rd Place Logic (Bottom Slot)
-                if step >= 1:
-                    guest = podium_guests[2]
-                    if guest:
-                        time_val = float(guest.get('time_taken') or 0.0)
-                        display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
-                        st.markdown(f"<div style='padding:15px; background-color:{bg_colors[2]}; color:{text_colors[2]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[2]}40;'>{medals[2]}: {display_name} ({time_val:.2f}s)</div>", unsafe_allow_html=True)
+                    # 2nd Place Logic (Middle Slot)
+                    if step >= 2:
+                        guest = podium_guests[1]
+                        if guest:
+                            time_val = float(guest.get('time_taken') or 0.0)
+                            display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
+                            st.markdown(f"<div style='padding:15px; background-color:{bg_colors[1]}; color:{text_colors[1]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[1]}40;'>{medals[1]}: {display_name} ({time_val:.2f}s)</div>", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[1]}: No one qualified!</div>", unsafe_allow_html=True)
                     else:
-                        st.markdown(f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[2]}: No one qualified!</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div style='padding:15px; background-color:#fafafa; color:#999; border-radius:8px; margin-bottom:10px; font-style:italic; font-family:sans-serif; border: 1px dashed #e0e0e0; display:flex; justify-content:center; align-items:center;'>🔒 {medals[2]} Locked</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='padding:15px; background-color:#fafafa; color:#999; border-radius:8px; margin-bottom:10px; font-style:italic; font-family:sans-serif; border: 1px dashed #e0e0e0; display:flex; justify-content:center; align-items:center;'>🔒 {medals[1]} Locked</div>", unsafe_allow_html=True)
+
+                    # 3rd Place Logic (Bottom Slot)
+                    if step >= 1:
+                        guest = podium_guests[2]
+                        if guest:
+                            time_val = float(guest.get('time_taken') or 0.0)
+                            display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
+                            st.markdown(f"<div style='padding:15px; background-color:{bg_colors[2]}; color:{text_colors[2]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[2]}40;'>{medals[2]}: {display_name} ({time_val:.2f}s)</div>", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[2]}: No one qualified!</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='padding:15px; background-color:#fafafa; color:#999; border-radius:8px; margin-bottom:10px; font-style:italic; font-family:sans-serif; border: 1px dashed #e0e0e0; display:flex; justify-content:center; align-items:center;'>🔒 {medals[2]} Locked</div>", unsafe_allow_html=True)
 
         # 🚨 THE PERMANENT GHOST-PROOF QR COLUMNS 🚨
         qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
         with qr_c2:
-            if game_status in ["lobby", "started"]: 
+            if d_status in ["lobby", "started"]: 
                 qr_img = load_qr()
                 if qr_img:
                     st.image(qr_img, use_container_width=True)
                 else:
                     st.info("⚠️ Admin: Upload qr.png")
             else:
-                # 🚨 THE TRANSPARENT PIXEL FIX 🚨
                 st.image(Image.new('RGBA', (1, 1), (0, 0, 0, 0)), use_container_width=True)
 
     with image_col:
         # Calls the cached PIL engine directly, stopping the polling flash
-        if game_status in ["lobby", "started", "closed"]:
+        if d_status in ["lobby", "started", "closed"]:
             st.image(load_template(), use_container_width=True)
             
-        elif game_status.startswith("reveal|"):
-            parts = game_status.split("|")
+        elif d_status.startswith("reveal|"):
+            parts = d_status.split("|")
             revealed_str = parts[1] if len(parts) > 1 else ""
             st.image(get_reveal_strip(revealed_str), use_container_width=True)
             
-        elif game_status.startswith("winners|") or game_status.startswith("runner_up|"):
+        elif d_status.startswith("winners|") or d_status.startswith("runner_up|"):
             st.image(get_reveal_strip("1,2,3,4"), use_container_width=True)
 
     # Trigger global effects safely outside of the layout columns
