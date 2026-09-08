@@ -190,15 +190,12 @@ if page == "admin":
     st.divider()
     
     st.subheader("3. Final Results")
-    w_col1, w_col2, w_col3 = st.columns(3)
+    w_col1, w_col2 = st.columns(2)
     with w_col1:
-        if st.button("🏆 Show Top 5 Winners"):
+        if st.button("🏆 Show Top 3 Winners", use_container_width=True):
             supabase.table("game_state").update({"status": "winners"}).eq("id", 1).execute()
     with w_col2:
-        if st.button("⚡ Show Fastest Champion"):
-            supabase.table("game_state").update({"status": "champion"}).eq("id", 1).execute()
-    with w_col3:
-        if st.button("🥈 Show Closest Runner-Up"):
+        if st.button("🥈 Show Top 3 Runner-Ups", use_container_width=True):
             supabase.table("game_state").update({"status": "runner_up"}).eq("id", 1).execute()
 
     st.divider()
@@ -277,32 +274,20 @@ elif page == "lobby":
             st.markdown("<div style='height: 140px;'></div>", unsafe_allow_html=True) # Amplified optical alignment spacer pushes content UP
             
         elif game_status == "winners":
-            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🎉 The Winners! 🎉</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🎉 Top 3 Winners! 🎉</h2>", unsafe_allow_html=True)
             if len(winners) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No one got the exact sequence! Let's check the Runner-Up board!</div>", unsafe_allow_html=True)
             else:
-                html = "<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>These guests got the perfect sequence:</div>"
-                for i, w in enumerate(winners[:5]):
+                html = "<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>The fastest perfect sequences:</div>"
+                medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
+                for i, w in enumerate(winners[:3]):
                     time_val = float(w.get('time_taken') or 0.0)
                     display_name = f"Table {w.get('table_number', '?')} - {w['guest_name']}"
-                    html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🏆 {display_name} ({time_val:.2f}s)</div>"
-                if len(winners) > 5:
-                    html += f"<div style='padding:10px; font-family:sans-serif;'>...and {len(winners) - 5} more!</div>"
-                st.markdown(html, unsafe_allow_html=True)
-                
-        elif game_status == "champion":
-            st.markdown("<h2 style='font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>⚡ THE CHAMPION ⚡</h2>", unsafe_allow_html=True)
-            if len(winners) == 0:
-                st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>Mission Failed: No one decoded the perfect sequence!</div>", unsafe_allow_html=True)
-            else:
-                champ = winners[0]
-                time_val = float(champ.get('time_taken') or 0.0)
-                display_name = f"Table {champ.get('table_number', '?')} - {champ['guest_name']}"
-                html = f"<div style='padding:15px; background-color:#fff3e0; color:#e65100; border-radius:8px; margin-bottom:10px; font-family:sans-serif;'><h3 style='margin:0; color:#e65100;'>👑 {display_name}</h3><p style='margin-top:5px;'>Locked in their answer in exactly <b>{time_val:.2f} seconds</b>!</p></div>"
+                    html += f"<div style='padding:12px; background-color:#e8f5e9; color:#2e7d32; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>{medals[i]}: {display_name} ({time_val:.2f}s)</div>"
                 st.markdown(html, unsafe_allow_html=True)
                 
         elif game_status == "runner_up":
-            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🥈 The Runner-Up!</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 15px;'>🥈 Top 3 Runner-Ups!</h2>", unsafe_allow_html=True)
             if len(ranked_submissions) == 0:
                 st.markdown("<div style='padding:15px; background-color:#ffebee; color:#c62828; border-radius:8px; font-family:sans-serif;'>No submissions found!</div>", unsafe_allow_html=True)
             elif ranked_submissions[0]["score"] == 0:
@@ -311,30 +296,26 @@ elif page == "lobby":
                 best_score = ranked_submissions[0]["score"]
                 html = f"<div style='font-size:18px; margin-bottom:15px; font-family:sans-serif;'>Nobody got all 4, but these guests were the closest (<b>{best_score}/4 correct</b>):</div>"
                 
+                medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
                 top_runners = [s for s in ranked_submissions if s["score"] == best_score]
                 for i, w in enumerate(top_runners[:3]):
                     time_val = float(w.get('time_taken') or 0.0)
                     display_name = f"Table {w.get('table_number', '?')} - {w['guest_name']}"
-                    html += f"<div style='padding:12px; background-color:#e3f2fd; color:#1565c0; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>🥈 {display_name} ({time_val:.2f}s)</div>"
+                    html += f"<div style='padding:12px; background-color:#e3f2fd; color:#1565c0; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif;'>{medals[i]}: {display_name} ({time_val:.2f}s)</div>"
                 st.markdown(html, unsafe_allow_html=True)
 
-        # 🚨 THE GHOST-PROOF QR CONTAINER 🚨
-        qr_placeholder = st.empty()
-        if game_status in ["lobby", "started"]: 
-            with qr_placeholder.container():
-                qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
-                with qr_c2:
-                    qr_img = load_qr()
-                    if qr_img:
-                        st.image(qr_img, use_container_width=True)
-                    else:
-                        st.info("⚠️ Admin: Upload qr.png")
-        else:
-            # DOM Node Overwrite: Mirroring the exact structure guarantees React correctly unmounts the nested image tag.
-            with qr_placeholder.container():
-                qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
-                with qr_c2:
-                    st.empty()
+        # 🚨 THE PERMANENT GHOST-PROOF QR COLUMNS 🚨
+        # By pinning the columns outside the IF statement, React never deletes the DOM grid structure.
+        qr_c1, qr_c2, qr_c3 = st.columns([1, 3.2, 1]) 
+        with qr_c2:
+            if game_status in ["lobby", "started"]: 
+                qr_img = load_qr()
+                if qr_img:
+                    st.image(qr_img, use_container_width=True)
+                else:
+                    st.info("⚠️ Admin: Upload qr.png")
+            else:
+                st.write("") # Instantly blanks the image without collapsing the columns
 
     with image_col:
         # Calls the cached PIL engine directly, stopping the polling flash
@@ -346,7 +327,7 @@ elif page == "lobby":
             revealed_str = parts[1] if len(parts) > 1 else ""
             st.image(get_reveal_strip(revealed_str), use_container_width=True)
             
-        elif game_status in ["winners", "champion", "runner_up"]:
+        elif game_status in ["winners", "runner_up"]:
             st.image(get_reveal_strip("1,2,3,4"), use_container_width=True)
 
     time.sleep(3)
@@ -427,7 +408,7 @@ else:
     # 🚨 LOBBY LOGIC MERGED WITH STARTED 🚨
     if game_status in ["started", "lobby"]:
         if st.session_state.has_submitted:
-            st.title("The WAW Film Strip Challenge 📱")
+            st.title("The WAW Film Strip Challenge 📸")
             st.success("Answers locked in! Thanks for playing. Enjoy your dinner and stay tuned for the grand reveal later tonight! 🥂")
             
             st.markdown("<h3 style='text-align: center; color: #333; font-family: serif; margin-bottom: 10px;'>Submission Locked 🔐</h3>", unsafe_allow_html=True)
@@ -472,7 +453,7 @@ else:
             *Every picture holds a memory—and counts for something more. Can you figure out the perfect sequence?*
             
             **How to Play:**
-            1. **Build the Strip:** Swipe through the gallery below and select 4 photos to lock in.
+            1. **Build the Strip:** Once the game starts, swipe through the gallery to select your 4 photos.
             2. **Fair Play:** Strictly ONE entry per person. We are watching! 👀
             """)
             st.warning("⏱️ **Accuracy first, speed second!** The winner is the fastest guest to submit the *perfect sequence*. Your timer starts the exact millisecond you click start. Do not close the app or you will lose your progress.")
@@ -503,7 +484,7 @@ else:
                         st.rerun()
 
         else:
-            st.title("The WAW Film Strip Challenge 📱")
+            st.title("The WAW Film Strip Challenge 📸")
             st.info("💡 **Hint:** *Every picture tells a story, and every story counts. Take a close look at the empty film strip... can you figure out which 4 memories unlock the ultimate WAW factor?*")
             
             st.write("### The Story Gallery")
