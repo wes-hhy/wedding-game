@@ -95,7 +95,11 @@ def get_audio_html(filename):
         with open(path, "rb") as f:
             data = f.read()
             b64 = base64.b64encode(data).decode()
-            return f'<audio autoplay style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
+            # 🚨 THE AUTOPLAY FIX 🚨
+            # Injecting a unique timestamp ID forces React to completely destroy the old 
+            # drumroll tag and mount a brand new one, guaranteeing the browser fires 'autoplay'.
+            uid = str(time.time()).replace(".", "")
+            return f'<div id="audio_wrapper_{uid}"><audio autoplay="true" style="display:none;" src="data:audio/mp3;base64,{b64}"></audio></div>'
     return ""
 
 # --- SESSION MEMORY ---
