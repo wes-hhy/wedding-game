@@ -194,10 +194,12 @@ if page == "admin":
     w_col1, w_col2 = st.columns(2)
     with w_col1:
         if st.button("🏆 Start Winners Podium", use_container_width=True):
-            supabase.table("game_state").update({"status": "winners|1"}).eq("id", 1).execute()
+            supabase.table("game_state").update({"status": "winners|0"}).eq("id", 1).execute()
+            st.rerun()
     with w_col2:
         if st.button("🥈 Start Runner-Up Podium", use_container_width=True):
-            supabase.table("game_state").update({"status": "runner_up|1"}).eq("id", 1).execute()
+            supabase.table("game_state").update({"status": "runner_up|0"}).eq("id", 1).execute()
+            st.rerun()
 
     # If a podium is active, show the step-by-step reveal controls
     if game_status.startswith("winners|") or game_status.startswith("runner_up|"):
@@ -208,12 +210,17 @@ if page == "admin":
         
         p_col1, p_col2, p_col3 = st.columns(3)
         with p_col1:
-            st.success("🥉 3rd Place Revealed")
+            if step >= 1:
+                st.success("🥉 3rd Place Revealed")
+            else:
+                if st.button("Reveal 🥉 3rd Place", type="primary", use_container_width=True):
+                    supabase.table("game_state").update({"status": f"{podium_type}|1"}).eq("id", 1).execute()
+                    st.rerun()
         with p_col2:
             if step >= 2:
                 st.success("🥈 2nd Place Revealed")
             else:
-                if st.button("Reveal 🥈 2nd Place", type="primary", use_container_width=True):
+                if st.button("Reveal 🥈 2nd Place", type="primary", disabled=(step < 1), use_container_width=True):
                     supabase.table("game_state").update({"status": f"{podium_type}|2"}).eq("id", 1).execute()
                     st.rerun()
         with p_col3:
@@ -335,22 +342,45 @@ elif page == "lobby":
                 bg_colors = ["#fff3e0", "#e3f2fd", "#e8f5e9"] # orange, blue, green
                 text_colors = ["#e65100", "#1565c0", "#2e7d32"]
                 
-                # Render in suspense order: 3rd, then 2nd, then 1st
-                display_indices = []
-                if step >= 1: display_indices.append(2) # Show 3rd
-                if step >= 2: display_indices.append(1) # Show 2nd
-                if step >= 3: display_indices.append(0) # Show 1st
+                # Render placeholders FIRST, then overwrite them with revealed winners
+                # We always render 3 boxes. If the step is lower than required, it stays a placeholder.
                 
-                for idx in display_indices:
-                    guest = podium_guests[idx]
+                # 3rd Place Logic (Index 2)
+                if step >= 1:
+                    guest = podium_guests[2]
                     if guest:
                         time_val = float(guest.get('time_taken') or 0.0)
                         display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
-                        html = f"<div style='padding:15px; background-color:{bg_colors[idx]}; color:{text_colors[idx]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[idx]}40;'>{medals[idx]}: {display_name} ({time_val:.2f}s)</div>"
-                        st.markdown(html, unsafe_allow_html=True)
+                        st.markdown(f"<div style='padding:15px; background-color:{bg_colors[2]}; color:{text_colors[2]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[2]}40;'>{medals[2]}: {display_name} ({time_val:.2f}s)</div>", unsafe_allow_html=True)
                     else:
-                        html = f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[idx]}: No one qualified!</div>"
-                        st.markdown(html, unsafe_allow_html=True)
+                        st.markdown(f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[2]}: No one qualified!</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='padding:15px; background-color:#fafafa; color:#999; border-radius:8px; margin-bottom:10px; font-style:italic; font-family:sans-serif; border: 1px dashed #e0e0e0; display:flex; justify-content:center; align-items:center;'>🔒 {medals[2]} Locked</div>", unsafe_allow_html=True)
+
+                # 2nd Place Logic (Index 1)
+                if step >= 2:
+                    guest = podium_guests[1]
+                    if guest:
+                        time_val = float(guest.get('time_taken') or 0.0)
+                        display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
+                        st.markdown(f"<div style='padding:15px; background-color:{bg_colors[1]}; color:{text_colors[1]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[1]}40;'>{medals[1]}: {display_name} ({time_val:.2f}s)</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[1]}: No one qualified!</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='padding:15px; background-color:#fafafa; color:#999; border-radius:8px; margin-bottom:10px; font-style:italic; font-family:sans-serif; border: 1px dashed #e0e0e0; display:flex; justify-content:center; align-items:center;'>🔒 {medals[1]} Locked</div>", unsafe_allow_html=True)
+
+                # 1st Place Logic (Index 0)
+                if step >= 3:
+                    guest = podium_guests[0]
+                    if guest:
+                        time_val = float(guest.get('time_taken') or 0.0)
+                        display_name = f"Table {guest.get('table_number', '?')} - {guest['guest_name']}"
+                        st.markdown(f"<div style='padding:15px; background-color:{bg_colors[0]}; color:{text_colors[0]}; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 2px solid {text_colors[0]}40;'>{medals[0]}: {display_name} ({time_val:.2f}s)</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='padding:15px; background-color:#f8f9fa; color:#adb5bd; border-radius:8px; margin-bottom:10px; font-weight:bold; font-family:sans-serif; border: 1px dashed #ced4da;'>{medals[0]}: No one qualified!</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='padding:15px; background-color:#fafafa; color:#999; border-radius:8px; margin-bottom:10px; font-style:italic; font-family:sans-serif; border: 1px dashed #e0e0e0; display:flex; justify-content:center; align-items:center;'>🔒 {medals[0]} Locked</div>", unsafe_allow_html=True)
+
 
         # 🚨 THE PERMANENT GHOST-PROOF QR COLUMNS 🚨
         # By pinning the columns outside the IF statement, React never deletes the DOM grid structure.
